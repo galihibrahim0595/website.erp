@@ -1,4 +1,4 @@
-import { Fragment as FragmentWithKey, useMemo, useState } from "react";
+import { Fragment as FragmentWithKey, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
   Search, Upload, Download, RefreshCw, Plus, ChevronDown, ChevronRight,
@@ -55,6 +55,12 @@ export function ProductsPage({
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [refreshKey, setRefreshKey] = useState(0);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const handleStockUpdated = () => setRefreshKey((value) => value + 1);
+    window.addEventListener("stock-updated", handleStockUpdated);
+    return () => window.removeEventListener("stock-updated", handleStockUpdated);
+  }, []);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();

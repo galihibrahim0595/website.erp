@@ -157,6 +157,57 @@ export function setProductStatus(productId: string, status: ProductStatus): Prod
   return product;
 }
 
+export function getWarehouseVariantStock(warehouseId: string, variantId: string): number {
+  const row = stock.find((item) => item.warehouseId === warehouseId && item.variantId === variantId);
+  return row ? row.available : 0;
+}
+
+export function updateWarehouseStock(warehouseId: string, variantId: string, qty: number, type: StockMovement["type"]): boolean {
+  const row = stock.find((item) => item.warehouseId === warehouseId && item.variantId === variantId);
+
+  if (type === "in") {
+    if (row) {
+      row.onHand += qty;
+      row.available = Math.max(0, row.onHand - row.reserved);
+      return true;
+    }
+
+    stock.push({ warehouseId, variantId, onHand: qty, reserved: 0, available: qty });
+    return true;
+  }
+
+  if (type === "out") {
+    if (!row || row.available < qty) {
+      return false;
+    }
+    row.onHand = Math.max(0, row.onHand - qty);
+    row.available = Math.max(0, row.onHand - row.reserved);
+    return true;
+  }
+
+  return true;
+}
+
+export function createStockMovement(movement: Omit<StockMovement, "id" | "createdAt">): StockMovement | undefined {
+  if (!updateWarehouseStock(movement.warehouseId, movement.variantId, movement.qty, movement.type)) {
+    return undefined;
+  }
+
+  const nextMovement: StockMovement = {
+    ...movement,
+    id: `mv-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+    createdAt: new Date().toISOString(),
+    reference: movement.reference ?? `REF-${100000 + stockMovements.length + 1}`,
+  };
+
+  stockMovements.unshift(nextMovement);
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event("stock-updated"));
+  }
+
+  return nextMovement;
+}
+
 // -------------------- Orders --------------------
 const buyerNames = ["Ahmad Fauzi", "Siti Rahayu", "Budi Santoso", "Dewi Lestari", "Rizky Pratama", "Nur Aisyah", "Andi Wibowo", "Sri Wahyuni"];
 const statuses: Order["status"][] = ["waiting_payment", "ready_to_process", "picking", "packing", "waiting_pickup", "completed", "returned"];

@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PageHeader } from "@/components/layout/AppLayout";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,13 @@ export const Route = createFileRoute("/gudang/stock")({
 function StockPage() {
   const [search, setSearch] = useState("");
   const [whId, setWhId] = useState<string>("all");
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  useEffect(() => {
+    const handleStockUpdated = () => setRefreshKey((value) => value + 1);
+    window.addEventListener("stock-updated", handleStockUpdated);
+    return () => window.removeEventListener("stock-updated", handleStockUpdated);
+  }, []);
 
   const rows = useMemo(() => {
     const list: { productName: string; sku: string; variantId: string; color?: string; size?: string; perWh: Record<string, number>; total: number }[] = [];

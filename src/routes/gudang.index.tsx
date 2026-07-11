@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { PageHeader } from "@/components/layout/AppLayout";
 import { Card } from "@/components/ui/card";
 import { Warehouse, PackageCheck, PackageMinus, ArrowLeftRight, ClipboardCheck, Boxes } from "lucide-react";
@@ -12,6 +13,14 @@ export const Route = createFileRoute("/gudang/")({
 });
 
 function WarehouseDashboard() {
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  useEffect(() => {
+    const handleStockUpdated = () => setRefreshKey((value) => value + 1);
+    window.addEventListener("stock-updated", handleStockUpdated);
+    return () => window.removeEventListener("stock-updated", handleStockUpdated);
+  }, []);
+
   const totalStock = stock.reduce((s, r) => s + r.available, 0);
   const totalReserved = stock.reduce((s, r) => s + r.reserved, 0);
   const inCount = stockMovements.filter(m => m.type === "in").length;
