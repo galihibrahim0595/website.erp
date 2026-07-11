@@ -1,4 +1,4 @@
-import { ChangeEvent, DragEvent, PointerEvent, useMemo, useRef, useState } from "react";
+import { ChangeEvent, DragEvent, PointerEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { ArrowLeft, Crop, Star, Trash2, UploadCloud, Video, X, Minus, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -18,9 +18,31 @@ type VariationCombination = {
   values: string[];
 };
 
+type VariationOption = {
+  id: string;
+  value: string;
+  image?: string;
+};
+
+type VariationGroup = {
+  id: string;
+  name: string;
+  options: VariationOption[];
+};
+
+type VariationRow = {
+  price: string;
+  promoPrice: string;
+  stock: string;
+  sku: string;
+  barcode: string;
+  skuManual?: boolean;
+};
+
 function TambahProdukPage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const videoInputRef = useRef<HTMLInputElement | null>(null);
+  const variationImageInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   const [store, setStore] = useState(STORE_OPTIONS[0]);
   const [productName, setProductName] = useState("");
@@ -38,6 +60,30 @@ function TambahProdukPage() {
   const [packageHeight, setPackageHeight] = useState("");
   const [preorder, setPreorder] = useState(false);
   const [condition, setCondition] = useState(CONDITION_OPTIONS[0]);
+  const [variationGroups, setVariationGroups] = useState<VariationGroup[]>([
+    {
+      id: "group-1",
+      name: "Warna",
+      options: [
+        { id: "opt-1", value: "Hitam" },
+        { id: "opt-2", value: "Putih" },
+        { id: "opt-3", value: "Abu" },
+      ],
+    },
+    {
+      id: "group-2",
+      name: "Ukuran",
+      options: [
+        { id: "opt-4", value: "M" },
+        { id: "opt-5", value: "L" },
+        { id: "opt-6", value: "XL" },
+      ],
+    },
+  ]);
+  const [variationRows, setVariationRows] = useState<Record<string, VariationRow>>({});
+  const [massPrice, setMassPrice] = useState("");
+  const [massStock, setMassStock] = useState("");
+  const [massSku, setMassSku] = useState("");
   const [cropModalOpen, setCropModalOpen] = useState(false);
   const [cropIndex, setCropIndex] = useState<number | null>(null);
   const [cropScale, setCropScale] = useState(1);
@@ -48,10 +94,199 @@ function TambahProdukPage() {
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
   const variationCombinations = useMemo<VariationCombination[]>(() => {
-    const colors = ["Hitam", "Putih", "Abu"];
-    const sizes = ["M", "L", "XL"];
-    return colors.flatMap((color) => sizes.map((size) => ({ label: `${color} - ${size}`, values: [color, size] })));
-  }, []);
+    if (variationGroups.length === 0) return [];
+    const optionLists = variationGroups.map((group) => group.options.map((option) => option.value).filter(Boolean));
+    if (optionLists.some((options) => options.length === 0)) return [];
+
+    const combos: VariationCombination[] = [];
+    const build = (index: number, values: string[]) => {
+      if (index === optionLists.length) {
+        combos.push({ label: values.join(" - "), values });
+        return;
+      }
+      optionLists[index].forEach((value) => build(index + 1, [...values, value]));
+    };
+
+    build(0, []);
+    return combos;
+  }, [variationGroups]);
+
+  const slug = (value: string) => value.trim().toLowerCase().replace(/\s+/g, "-");
+
+  const generateVariationSku = (combo: VariationCombination) => {
+    const prefix = slug(sku);
+    const suffix = combo.values.map(slug).filter(Boolean).join("-");
+    return prefix ? `${prefix}${suffix ? `-${suffix}` : ""}` : suffix;
+  };
+
+  useEffect(() => {
+    setVariationRows((prev) => {
+      const next: Record<string, VariationRow> = { ...prev };
+      let changed = false;
+
+      variationCombinations.forEach((combo) => {
+        const existing = prev[combo.label] ?? {
+          price: "",
+          promoPrice: "",
+          stock: "",
+          sku: "",
+          barcode: "",
+          skuManual: false,
+        };
+
+        if (existing.skuManual) {
+          return;
+        }
+
+        const generatedSku = generateVariationSku(combo);
+        if (existing.sku !== generatedSku || existing.skuManual !== false) {
+          next[combo.label] = {
+            ...existing,
+            sku: generatedSku,
+            skuManual: false,
+          };
+          changed = true;
+        }
+      });
+
+      return changed ? next : prev;
+    });
+  }, [variationCombinations, sku]);
+
+  const createId = () => `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+  const updateVariationGroupName = (groupId: string, name: string) => {
+    setVariationGroups((prev) => prev.map((group) => (group.id === groupId ? { ...group, name } : group)));
+  };
+
+  const addVariationGroup = () => {
+    setVariationGroups((prev) => [
+      ...prev,
+      { id: createId(), name: "Variasi", options: [{ id: createId(), value: "" }] },
+    ]);
+  };
+
+  const removeVariationGroup = (groupId: string) => {
+    setVariationGroups((prev) => prev.filter((group) => group.id !== groupId));
+  };
+
+  const addVariationOption = (groupId: string) => {
+    setVariationGroups((prev) =>
+      prev.map((group) =>
+        group.id === groupId
+          ? { ...group, options: [...group.options, { id: createId(), value: "" }] }
+          : group
+      )
+    );
+  };
+
+  const updateVariationOptionValue = (groupId: string, optionId: string, value: string) => {
+    setVariationGroups((prev) =>
+      prev.map((group) =>
+        group.id === groupId
+          ? {
+              ...group,
+              options: group.options.map((option) => (option.id === optionId ? { ...option, value } : option)),
+            }
+          : group
+      )
+    );
+  };
+
+  const removeVariationOption = (groupId: string, optionId: string) => {
+    setVariationGroups((prev) =>
+      prev.map((group) =>
+        group.id === groupId
+          ? { ...group, options: group.options.filter((option) => option.id !== optionId) }
+          : group
+      )
+    );
+  };
+
+  const handleVariationOptionPhoto = (event: ChangeEvent<HTMLInputElement>, groupId: string, optionId: string) => {
+    const file = event.target.files?.[0];
+    if (!file || !file.type.startsWith("image/")) return;
+    const preview = URL.createObjectURL(file);
+    setVariationGroups((prev) =>
+      prev.map((group) =>
+        group.id === groupId
+          ? {
+              ...group,
+              options: group.options.map((option) =>
+                option.id === optionId ? { ...option, image: preview } : option
+              ),
+            }
+          : group
+      )
+    );
+  };
+
+  const updateVariationRow = (key: string, field: keyof VariationRow, value: string) => {
+    setVariationRows((prev) => ({
+      ...prev,
+      [key]: {
+        price: prev[key]?.price ?? "",
+        promoPrice: prev[key]?.promoPrice ?? "",
+        stock: prev[key]?.stock ?? "",
+        sku: prev[key]?.sku ?? "",
+        barcode: prev[key]?.barcode ?? "",
+        skuManual: field === "sku" ? true : prev[key]?.skuManual ?? false,
+        [field]: value,
+      },
+    }));
+  };
+
+  const applyMassPrice = () => {
+    if (!massPrice) return;
+    setVariationRows((prev) => {
+      const next = { ...prev };
+      variationCombinations.forEach((combo) => {
+        next[combo.label] = {
+          price: massPrice,
+          promoPrice: next[combo.label]?.promoPrice ?? "",
+          stock: next[combo.label]?.stock ?? "",
+          sku: next[combo.label]?.sku ?? "",
+          barcode: next[combo.label]?.barcode ?? "",
+        };
+      });
+      return next;
+    });
+  };
+
+  const applyMassStock = () => {
+    if (!massStock) return;
+    setVariationRows((prev) => {
+      const next = { ...prev };
+      variationCombinations.forEach((combo) => {
+        next[combo.label] = {
+          price: next[combo.label]?.price ?? "",
+          promoPrice: next[combo.label]?.promoPrice ?? "",
+          stock: massStock,
+          sku: next[combo.label]?.sku ?? "",
+          barcode: next[combo.label]?.barcode ?? "",
+        };
+      });
+      return next;
+    });
+  };
+
+  const applyMassSku = () => {
+    if (!massSku) return;
+    setVariationRows((prev) => {
+      const next = { ...prev };
+      variationCombinations.forEach((combo) => {
+        next[combo.label] = {
+          price: next[combo.label]?.price ?? "",
+          promoPrice: next[combo.label]?.promoPrice ?? "",
+          stock: next[combo.label]?.stock ?? "",
+          sku: massSku,
+          barcode: next[combo.label]?.barcode ?? "",
+          skuManual: true,
+        };
+      });
+      return next;
+    });
+  };
 
   const cropImageTo34 = async (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -559,57 +794,184 @@ function TambahProdukPage() {
         </Card>
 
         <Card className="p-6 space-y-5">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <div className="text-sm font-semibold">Variasi</div>
-              <p className="text-xs text-muted-foreground">Default berisi variasi Warna dan Ukuran.</p>
+              <div className="text-sm font-semibold">Variasi Produk</div>
+              <p className="text-xs text-muted-foreground">Atur variasi seperti Shopee Seller Center.</p>
             </div>
-            <div className="grid w-full gap-2 sm:w-auto sm:grid-flow-col sm:grid-cols-2">
-              <Button variant="secondary" size="sm" type="button" disabled>
-                Berbagai Variasi
-              </Button>
-              <Button variant="outline" size="sm" type="button" disabled>
-                Satu Variasi
-              </Button>
-            </div>
+            <Button type="button" onClick={addVariationGroup}>Tambah Variasi</Button>
           </div>
 
-          <div className="grid gap-4 lg:grid-cols-2">
-            <div className="rounded-3xl border border-border bg-background p-4">
-              <div className="text-sm font-semibold">Warna</div>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {['Hitam', 'Putih', 'Abu'].map((color) => (
-                  <span key={color} className="rounded-full border border-border bg-muted px-3 py-1 text-xs">{color}</span>
-                ))}
-              </div>
-            </div>
-            <div className="rounded-3xl border border-border bg-background p-4">
-              <div className="text-sm font-semibold">Ukuran</div>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {['M', 'L', 'XL'].map((size) => (
-                  <span key={size} className="rounded-full border border-border bg-muted px-3 py-1 text-xs">{size}</span>
-                ))}
-              </div>
-            </div>
+          <div className="space-y-4">
+            {variationGroups.map((group, groupIndex) => (
+              <Card key={group.id} className="rounded-3xl border border-border bg-background p-4">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="min-w-0 flex-1">
+                    <Label className="mb-1">Variasi {groupIndex + 1}</Label>
+                    <Input
+                      value={group.name}
+                      onChange={(event) => updateVariationGroupName(group.id, event.target.value)}
+                      placeholder={`Nama variasi ${groupIndex + 1}`}
+                    />
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" variant="outline" size="sm" onClick={() => addVariationOption(group.id)}>
+                      Tambah opsi
+                    </Button>
+                    {variationGroups.length > 1 ? (
+                      <Button type="button" variant="outline" size="sm" onClick={() => removeVariationGroup(group.id)}>
+                        Hapus Variasi
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="mt-4 space-y-3">
+                  <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Opsi</div>
+                  <div className="grid gap-3">
+                    {group.options.map((option) => (
+                      <div key={option.id} className="grid gap-3 rounded-2xl border border-border bg-muted p-3 sm:grid-cols-[1fr_auto]">
+                        <div className="grid gap-2">
+                          <Input
+                            value={option.value}
+                            onChange={(event) => updateVariationOptionValue(group.id, option.id, event.target.value)}
+                            placeholder="Nama opsi"
+                          />
+                          {groupIndex === 0 && (
+                            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                              <div className="h-16 w-16 overflow-hidden rounded-xl border border-border bg-background">
+                                {option.image ? (
+                                  <img src={option.image} alt={option.value || "Opsi"} className="h-full w-full object-cover object-center" />
+                                ) : (
+                                  <div className="flex h-full w-full items-center justify-center text-[10px] text-muted-foreground">Upload Foto</div>
+                                )}
+                              </div>
+                              <div className="grid gap-2">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => variationImageInputRefs.current[option.id]?.click()}
+                                >
+                                  Upload Foto
+                                </Button>
+                                <input
+                                  ref={(element) => {
+                                    variationImageInputRefs.current[option.id] = element;
+                                  }}
+                                  type="file"
+                                  accept="image/*"
+                                  className="hidden"
+                                  onChange={(event) => handleVariationOptionPhoto(event, group.id, option.id)}
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex items-center justify-end gap-2">
+                          {group.options.length > 1 && (
+                            <Button type="button" variant="outline" size="sm" onClick={() => removeVariationOption(group.id, option.id)}>
+                              Hapus
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </Card>
+            ))}
           </div>
+
+          <Card className="rounded-3xl border border-border bg-background p-4">
+            <div className="grid gap-4 lg:grid-cols-3">
+              <div className="grid gap-2">
+                <Label>Atur Semua Harga</Label>
+                <Input value={massPrice} onChange={(event) => setMassPrice(event.target.value)} placeholder="Harga" />
+                <Button type="button" onClick={applyMassPrice}>Atur Semua Harga</Button>
+              </div>
+              <div className="grid gap-2">
+                <Label>Atur Semua Stok</Label>
+                <Input value={massStock} onChange={(event) => setMassStock(event.target.value)} placeholder="Stok" />
+                <Button type="button" onClick={applyMassStock}>Atur Semua Stok</Button>
+              </div>
+              <div className="grid gap-2">
+                <Label>Atur Semua SKU</Label>
+                <Input value={massSku} onChange={(event) => setMassSku(event.target.value)} placeholder="SKU" />
+                <Button type="button" onClick={applyMassSku}>Atur Semua SKU</Button>
+              </div>
+            </div>
+          </Card>
 
           <div className="overflow-x-auto rounded-3xl border border-border bg-background">
             <table className="min-w-full text-sm">
               <thead className="bg-muted/70 text-left text-xs uppercase tracking-wide text-muted-foreground">
                 <tr>
-                  <th className="px-3 py-3">Kombinasi</th>
+                  <th className="px-3 py-3">Thumbnail</th>
+                  {variationGroups.map((group) => (
+                    <th key={group.id} className="px-3 py-3">{group.name}</th>
+                  ))}
                   <th className="px-3 py-3">Harga</th>
+                  <th className="px-3 py-3">Harga Diskon</th>
                   <th className="px-3 py-3">Stok</th>
+                  <th className="px-3 py-3">SKU Variasi</th>
+                  <th className="px-3 py-3">Barcode</th>
                 </tr>
               </thead>
               <tbody>
-                {variationCombinations.map((combo) => (
-                  <tr key={combo.label} className="border-t border-border">
-                    <td className="px-3 py-3">{combo.label}</td>
-                    <td className="px-3 py-3">-</td>
-                    <td className="px-3 py-3">-</td>
-                  </tr>
-                ))}
+                {variationCombinations.map((combo) => {
+                  const row = variationRows[combo.label] || { price: "", promoPrice: "", stock: "", sku: "", barcode: "" };
+                  const firstOption = variationGroups[0]?.options.find((option) => option.value === combo.values[0]);
+                  return (
+                    <tr key={combo.label} className="border-t border-border">
+                      <td className="px-3 py-3 align-middle">
+                        {firstOption?.image ? (
+                          <img src={firstOption.image} alt={combo.label} className="h-14 w-14 rounded-xl object-cover object-center" />
+                        ) : (
+                          <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-muted text-[10px] text-muted-foreground">No Foto</div>
+                        )}
+                      </td>
+                      {combo.values.map((value, index) => (
+                        <td key={`${combo.label}-${index}`} className="px-3 py-3 align-middle">{value}</td>
+                      ))}
+                      <td className="px-3 py-3 align-middle">
+                        <Input
+                          value={row.price}
+                          onChange={(event) => updateVariationRow(combo.label, "price", event.target.value)}
+                          placeholder="Harga"
+                        />
+                      </td>
+                      <td className="px-3 py-3 align-middle">
+                        <Input
+                          value={row.promoPrice}
+                          onChange={(event) => updateVariationRow(combo.label, "promoPrice", event.target.value)}
+                          placeholder="Diskon"
+                        />
+                      </td>
+                      <td className="px-3 py-3 align-middle">
+                        <Input
+                          value={row.stock}
+                          onChange={(event) => updateVariationRow(combo.label, "stock", event.target.value)}
+                          placeholder="Stok"
+                        />
+                      </td>
+                      <td className="px-3 py-3 align-middle">
+                        <Input
+                          value={row.sku}
+                          onChange={(event) => updateVariationRow(combo.label, "sku", event.target.value)}
+                          placeholder="SKU"
+                        />
+                      </td>
+                      <td className="px-3 py-3 align-middle">
+                        <Input
+                          value={row.barcode}
+                          onChange={(event) => updateVariationRow(combo.label, "barcode", event.target.value)}
+                          placeholder="Barcode"
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
