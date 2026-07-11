@@ -24,6 +24,7 @@ export const suppliers: Supplier[] = [
 const colors = ["Hitam", "Putih", "Navy", "Abu", "Merah"];
 const sizes = ["S", "M", "L", "XL", "XXL"];
 const marketplaces = ["shopee", "tiktok", "tokopedia", "lazada"] as const;
+const STORE_OPTIONS = ["Toko Utama", "Toko Jakarta", "Toko Surabaya"];
 const categories = ["Fashion Pria", "Fashion Wanita", "Aksesoris", "Elektronik", "Rumah Tangga"];
 
 function makeVariants(productId: string, base: string, price: number, mapped: boolean): ProductVariant[] {
@@ -64,6 +65,8 @@ export const products: Product[] = productNames.flatMap((name, i) => {
       id,
       name,
       photo: `https://picsum.photos/seed/${id}/120/120`,
+      store: STORE_OPTIONS[i % STORE_OPTIONS.length] ?? "Toko Utama",
+      description: `Deskripsi untuk ${name}`,
       category: categories[i % categories.length],
       brand: ["Nova", "UrbanCo", "Kaosmu", "StyleID"][i % 4],
       weightGram: 250 + i * 20,
@@ -122,6 +125,36 @@ export function getProductMappingStatus(p: Product): "mapped" | "unmapped" | "pa
   if (mapped === 0) return "unmapped";
   if (mapped === total) return "mapped";
   return "partial";
+}
+
+export function getProductById(id: string): Product | undefined {
+  return products.find((product) => product.id === id);
+}
+
+export function createProduct(product: Product): Product {
+  products.push(product);
+  return product;
+}
+
+export function updateProduct(product: Product): Product | undefined {
+  const index = products.findIndex((item) => item.id === product.id);
+  if (index === -1) return undefined;
+  products[index] = product;
+  return product;
+}
+
+export function deleteProduct(productId: string): boolean {
+  const index = products.findIndex((item) => item.id === productId);
+  if (index === -1) return false;
+  products.splice(index, 1);
+  return true;
+}
+
+export function setProductStatus(productId: string, status: ProductStatus): Product | undefined {
+  const product = getProductById(productId);
+  if (!product) return undefined;
+  product.status = status;
+  return product;
 }
 
 // -------------------- Orders --------------------

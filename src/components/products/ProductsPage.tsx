@@ -1,5 +1,5 @@
 import { Fragment as FragmentWithKey, useMemo, useState } from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import {
   Search, Upload, Download, RefreshCw, Plus, ChevronDown, ChevronRight,
   Store, Pencil, Copy, Archive, Trash2,
@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { PageHeader } from "@/components/layout/AppLayout";
 import { cn } from "@/lib/utils";
-import { products as allProducts, getProductStock, getVariantStock, getProductMappingStatus } from "@/services/data";
+import { products as allProducts, getProductStock, getVariantStock, getProductMappingStatus, setProductStatus, deleteProduct } from "@/services/data";
 import type { Product, ProductStatus, Marketplace } from "@/types";
 import { formatIDR, formatNumber, timeAgo } from "@/lib/format";
 
@@ -53,6 +53,8 @@ export function ProductsPage({
   const [page, setPage] = useState(1);
   const [sortKey, setSortKey] = useState<"name" | "price" | "stock" | "updated">("updated");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [refreshKey, setRefreshKey] = useState(0);
+  const navigate = useNavigate();
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -89,7 +91,7 @@ export function ProductsPage({
       return (new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime()) * dir;
     });
     return list;
-  }, [search, marketplace, dateFilter, status, mapping, statusFilter, sortKey, sortDir]);
+  }, [search, marketplace, dateFilter, status, mapping, statusFilter, sortKey, sortDir, refreshKey]);
 
   const pageSize = 10;
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
@@ -110,16 +112,25 @@ export function ProductsPage({
   };
 
   const handleEdit = (product: Product) => {
-    console.info("Edit product", product.id);
+    navigate({ to: `/produk/tambah?mode=edit&id=${product.id}` });
   };
   const handleCopy = (product: Product) => {
-    console.info("Copy product", product.id);
+    navigate({ to: `/produk/tambah?mode=copy&id=${product.id}` });
   };
   const handleArchive = (product: Product) => {
-    console.info("Archive product", product.id);
+    if (!window.confirm(`Arsipkan produk ${product.name}?`)) return;
+    setProductStatus(product.id, "draft");
+    setRefreshKey((value) => value + 1);
   };
   const handleDelete = (product: Product) => {
-    console.info("Delete product", product.id);
+    if (!window.confirm(`Hapus produk ${product.name}?`)) return;
+    deleteProduct(product.id);
+    setSelected((prev) => {
+      const next = { ...prev };
+      delete next[product.id];
+      return next;
+    });
+    setRefreshKey((value) => value + 1);
   };
 
   return (

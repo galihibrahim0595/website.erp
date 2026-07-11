@@ -1,5 +1,5 @@
-import { ChangeEvent, DragEvent, PointerEvent, useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "@tanstack/react-router";
+import { ChangeEvent, DragEvent, FormEvent, PointerEvent, useEffect, useMemo, useRef, useState } from "react";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, Crop, Star, Trash2, UploadCloud, Video, X, Minus, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -8,6 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { PageHeader } from "@/components/layout/AppLayout";
+import { createProduct, getProductById, getVariantStock, updateProduct } from "@/services/data";
+import type { Product, ProductVariant } from "@/types";
 
 const STORE_OPTIONS = ["Toko Utama", "Toko Jakarta", "Toko Surabaya"];
 const CATEGORY_OPTIONS = ["Pakaian", "Elektronik", "Kecantikan", "Rumah Tangga"];
@@ -47,6 +49,9 @@ function TambahProdukPage() {
   const [store, setStore] = useState(STORE_OPTIONS[0]);
   const [productName, setProductName] = useState("");
   const [category, setCategory] = useState("");
+  const [pageMode, setPageMode] = useState<"add" | "edit" | "copy">("add");
+  const [editingProductId, setEditingProductId] = useState<string | null>(null);
+  const [loadedProduct, setLoadedProduct] = useState<Product | null>(null);
   const [images, setImages] = useState<string[]>([]);
   const [video, setVideo] = useState<string | null>(null);
   const [sku, setSku] = useState("");
@@ -154,6 +159,143 @@ function TambahProdukPage() {
   }, [variationCombinations, sku]);
 
   const createId = () => `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+  const buildVariationState = (product: Product) => {
+    const variants = product.variants ?? [];
+    const colors = Array.from(new Set(variants.map((variant) => variant.color).filter(Boolean))) as string[];
+    const sizes = Array.from(new Set(variants.map((variant) => variant.size).filter(Boolean))) as string[];
+    const groups: VariationGroup[] = [];
+
+    if (colors.length > 0) {
+      groups.push({
+        id: "group-color",
+        name: "Warna",
+        options: colors.map((color) => ({ id: `color-${slug(color)}`, value: color })),
+      });
+    }
+
+    if (sizes.length > 0) {
+      groups.push({
+        id: "group-size",
+        name: "Ukuran",
+        options: sizes.map((size) => ({ id: `size-${slug(size)}`, value: size })),
+      });
+    }
+
+    if (groups.length === 0 && variants.length > 0) {
+      const values = Array.from(new Set(variants.map((variant) => variant.sku).filter(Boolean))) as string[];
+      groups.push({ id: "group-1", name: "Variasi", options: values.map((value) => ({ id: `option-${slug(value)}`, value })) });
+    }
+
+    const rows: Record<string, VariationRow> = {};
+    variants.forEach((variant) => {
+      const values: string[] = [];
+      if (variant.color) values.push(variant.color);
+      if (variant.size) values.push(variant.size);
+      if (values.length === 0) return;
+      const label = values.join(" - ");
+      rows[label] = {
+        price: String(variant.price),
+        promoPrice: "",
+        stock: String(getVariantStock(variant.id)),
+        sku: variant.sku,
+        barcode: variant.barcode ?? "",
+        skuManual: true,
+      };
+    });
+
+    setVariationGroups(groups.length > 0 ? groups : variationGroups);
+    setVariationRows(rows);
+  };
+
+  const loadProductData = (mode: "edit" | "copy", productId: string) => {
+    const product = getProductById(productId);
+    if (!product) return;
+    setLoadedProduct(product);
+    setPageMode(mode);
+    setEditingProductId(mode === "edit" ? productId : null);
+    setStore(product.store ?? STORE_OPTIONS[0]);
+    setProductName(product.name);
+    setCategory(product.category);
+    setImages(product.photo ? [product.photo] : []);
+    setVideo(product.video ?? null);
+    setSku(product.masterSku);
+    setDescription(product.description ?? "");
+    setPrice("");
+    setPromoPrice("");
+    setStock("");
+    setWeight(product.weightGram ? String(product.weightGram) : "");
+    setPackageLength(product.dimensions?.l ? String(product.dimensions.l) : "");
+    setPackageWidth(product.dimensions?.w ? String(product.dimensions.w) : "");
+    setPackageHeight(product.dimensions?.h ? String(product.dimensions.h) : "");
+    setCondition(product.status === "draft" ? CONDITION_OPTIONS[0] : CONDITION_OPTIONS[0]);
+    buildVariationState(product);
+  };
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const mode = params.get("mode");
+    const id = params.get("id");
+    if ((mode === "edit" || mode === "copy") && id) {
+      loadProductData(mode, id);
+    }
+  }, []);
+
+  const generateProductVariants = (): ProductVariant[] => {
+    return variationCombinations.map((combo, index) => {
+      const row = variationRows[combo.label] || { price: "", promoPrice: "", stock: "", sku: "", barcode: "" };
+      const variantId = editingProductId
+        ? `${editingProductId}-${slug(combo.label)}`
+        : `variant-${Date.now()}-${index}`;
+      const values = combo.values;
+      return {
+        id: variantId,
+        productId: editingProductId || `prd-${Date.now()}`,
+        sku: row.sku || `${slug(sku)}-${combo.values.map(slug).join("-")}`,
+        barcode: row.barcode || undefined,
+        color: combo.values[0] ?? undefined,
+        size: combo.values[1] ?? undefined,
+        price: Number(row.price) || 0,
+        mappingStatus: pageMode === "copy" ? "unmapped" : loadedProduct?.variants.find((v) => v.sku === row.sku)?.mappingStatus ?? "unmapped",
+      };
+    });
+  };
+
+  const navigate = useNavigate();
+
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const productData: Product = {
+      id: pageMode === "edit" && loadedProduct ? loadedProduct.id : `prd-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+      name: productName,
+      photo: images[0] ?? undefined,
+      video: video ?? undefined,
+      description,
+      store,
+      category,
+      brand: loadedProduct?.brand,
+      weightGram: Number(weight) || loadedProduct?.weightGram,
+      dimensions: {
+        l: Number(packageLength) || loadedProduct?.dimensions?.l || 0,
+        w: Number(packageWidth) || loadedProduct?.dimensions?.w || 0,
+        h: Number(packageHeight) || loadedProduct?.dimensions?.h || 0,
+      },
+      supplierId: loadedProduct?.supplierId,
+      masterSku: sku,
+      marketplace: loadedProduct?.marketplace ?? "manual",
+      status: pageMode === "edit" ? loadedProduct?.status ?? "active" : "active",
+      variants: generateProductVariants(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    if (pageMode === "edit") {
+      updateProduct(productData);
+    } else {
+      createProduct(productData);
+    }
+
+    navigate({ to: "/produk" });
+  };
 
   const updateVariationGroupName = (groupId: string, name: string) => {
     setVariationGroups((prev) => prev.map((group) => (group.id === groupId ? { ...group, name } : group)));
@@ -543,8 +685,8 @@ function TambahProdukPage() {
   return (
     <div className="p-6 space-y-6">
       <PageHeader
-        title="Tambah Produk"
-        subtitle="Isi data produk untuk ditambahkan ke katalog."
+        title={pageMode === "edit" ? "Edit Produk" : pageMode === "copy" ? "Salin Produk" : "Tambah Produk"}
+        subtitle={pageMode === "edit" ? "Ubah data produk lalu simpan." : pageMode === "copy" ? "Salin produk dan simpan sebagai produk baru." : "Isi data produk untuk ditambahkan ke katalog."}
         actions={
           <Link to="/produk" className="inline-flex">
             <Button variant="outline" size="sm">
@@ -554,7 +696,7 @@ function TambahProdukPage() {
         }
       />
 
-      <form className="space-y-6">
+      <form className="space-y-6" onSubmit={handleSubmit}>
         <Card className="p-6 space-y-5">
           <div className="grid gap-4 lg:grid-cols-3">
             <div className="grid gap-2">
@@ -1043,7 +1185,7 @@ function TambahProdukPage() {
           <Link to="/produk" className="inline-flex">
             <Button variant="outline" size="sm">Batal</Button>
           </Link>
-          <Button type="submit">Simpan Produk</Button>
+          <Button type="submit">{pageMode === "edit" ? "Update Produk" : "Simpan Produk"}</Button>
         </div>
       </form>
     </div>

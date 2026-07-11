@@ -38,6 +38,9 @@ export interface Product {
   id: string;
   name: string;
   photo?: string;
+  store?: string;
+  video?: string;
+  description?: string;
   category: string;
   brand?: string;
   weightGram?: number;
