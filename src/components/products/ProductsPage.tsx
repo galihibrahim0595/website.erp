@@ -36,10 +36,12 @@ export function ProductsPage({
   title = "Semua Produk",
   statusFilter,
   mappingOnly,
+  showAddButton,
 }: {
   title?: string;
   statusFilter?: ProductStatus;
   mappingOnly?: boolean;
+  showAddButton?: boolean;
 }) {
   const [search, setSearch] = useState("");
   const [marketplace, setMarketplace] = useState<Marketplace | "all">("all");
@@ -130,7 +132,11 @@ export function ProductsPage({
             <Button variant="outline" size="sm"><Upload className="h-3.5 w-3.5" /> Import</Button>
             <Button variant="outline" size="sm"><Download className="h-3.5 w-3.5" /> Export</Button>
             <Button variant="outline" size="sm"><RefreshCw className="h-3.5 w-3.5" /> Sinkronisasi</Button>
-            <Button size="sm" className="bg-primary hover:bg-primary-hover"><Plus className="h-3.5 w-3.5" /> Tambah Produk</Button>
+            {showAddButton ? (
+              <Link to="/produk/tambah" className="inline-flex">
+                <Button size="sm" className="bg-primary hover:bg-primary-hover"><Plus className="h-3.5 w-3.5" /> Tambah Produk</Button>
+              </Link>
+            ) : null}
           </>
         }
       />

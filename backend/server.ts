@@ -40,6 +40,26 @@ app.use(express.json());
 const dbPath = path.join(__dirname, "data", "auth.db");
 const db = new Database(dbPath);
 
+type ProductPayload = {
+  name: string;
+  category: string;
+  sku: string;
+  description: string;
+  variations: Array<{ name: string; options: string[] }>;
+  price: number;
+  promoPrice?: number;
+  stock: number;
+  wholesale?: string;
+  weight: number;
+  size: { width: number; height: number; length: number };
+  condition: string;
+  preorder: boolean;
+  store?: string;
+  images?: string[];
+  video?: string | null;
+  combinations?: Array<{ label: string; values: string[] }>;
+};
+
 function initDatabase() {
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
@@ -49,6 +69,30 @@ function initDatabase() {
       password TEXT NOT NULL,
       role TEXT NOT NULL DEFAULT 'Owner',
       enabled INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS products (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      store TEXT,
+      name TEXT NOT NULL,
+      category TEXT NOT NULL,
+      sku TEXT NOT NULL UNIQUE,
+      description TEXT,
+      variations TEXT NOT NULL,
+      combinations TEXT,
+      price REAL NOT NULL,
+      promo_price REAL,
+      stock INTEGER NOT NULL,
+      wholesale TEXT,
+      weight REAL,
+      package_width REAL,
+      package_height REAL,
+      package_length REAL,
+      condition TEXT,
+      preorder INTEGER NOT NULL DEFAULT 0,
+      images TEXT,
+      video TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
   `);
@@ -243,6 +287,103 @@ app.delete("/api/users/:id", authenticateToken, requireOwner, (req, res) => {
   }
 
   res.json({ success: true });
+});
+
+function isValidVariation(value: unknown): value is { name: string; options: string[] } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as any).name === "string" &&
+    Array.isArray((value as any).options) &&
+    (value as any).options.every((item: unknown) => typeof item === "string")
+  );
+}
+
+app.post("/api/products", authenticateToken, (req, res) => {
+  const payload = req.body as ProductPayload;
+
+  if (
+    typeof payload.name !== "string" ||
+    typeof payload.category !== "string" ||
+    typeof payload.sku !== "string" ||
+    typeof payload.description !== "string" ||
+    !Array.isArray(payload.variations) ||
+    payload.variations.length === 0 ||
+    payload.variations.some((variation) => !isValidVariation(variation)) ||
+    typeof payload.price !== "number" ||
+    Number.isNaN(payload.price) ||
+    typeof payload.stock !== "number" ||
+    Number.isNaN(payload.stock) ||
+    typeof payload.weight !== "number" ||
+    Number.isNaN(payload.weight) ||
+    typeof payload.size !== "object" ||
+    payload.size === null ||
+    typeof payload.size.width !== "number" ||
+    typeof payload.size.height !== "number" ||
+    typeof payload.size.length !== "number" ||
+    typeof payload.condition !== "string" ||
+    typeof payload.preorder !== "boolean"
+  ) {
+    return res.status(400).json({ error: "Invalid product data" });
+  }
+
+  try {
+    const result = db.prepare(
+      `INSERT INTO products (
+        store,
+        name,
+        category,
+        sku,
+        description,
+        variations,
+        combinations,
+        price,
+        promo_price,
+        stock,
+        wholesale,
+        weight,
+        package_width,
+        package_height,
+        package_length,
+        condition,
+        preorder,
+        images,
+        video
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      payload.store ?? null,
+      payload.name,
+      payload.category,
+      payload.sku,
+      payload.description,
+      JSON.stringify(payload.variations),
+      payload.combinations ? JSON.stringify(payload.combinations) : null,
+      payload.price,
+      typeof payload.promoPrice === "number" ? payload.promoPrice : null,
+      payload.stock,
+      payload.wholesale ?? null,
+      payload.weight,
+      payload.size.width,
+      payload.size.height,
+      payload.size.length,
+      payload.condition,
+      payload.preorder ? 1 : 0,
+      payload.images ? JSON.stringify(payload.images) : null,
+      payload.video ?? null,
+    );
+
+    const product = db
+      .prepare("SELECT * FROM products WHERE id = ?")
+      .get(result.lastInsertRowid);
+
+    res.status(201).json({ product });
+  } catch (error) {
+    console.error(error);
+    if ((error as any)?.code === "SQLITE_CONSTRAINT_UNIQUE") {
+      return res.status(409).json({ error: "SKU sudah digunakan" });
+    }
+    res.status(500).json({ error: "Gagal menyimpan produk" });
+  }
 });
 
 app.get("/api/me", authenticateToken, (req, res) => {

@@ -19,6 +19,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProdukIndexRouteImport } from './routes/produk.index'
 import { Route as PesananIndexRouteImport } from './routes/pesanan.index'
 import { Route as GudangIndexRouteImport } from './routes/gudang.index'
+import { Route as ProdukTambahRouteImport } from './routes/produk.tambah'
 import { Route as ProdukNonaktifRouteImport } from './routes/produk.nonaktif'
 import { Route as ProdukMappingRouteImport } from './routes/produk.mapping'
 import { Route as ProdukDraftRouteImport } from './routes/produk.draft'
@@ -89,6 +90,11 @@ const PesananIndexRoute = PesananIndexRouteImport.update({
 const GudangIndexRoute = GudangIndexRouteImport.update({
   id: '/gudang/',
   path: '/gudang/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProdukTambahRoute = ProdukTambahRouteImport.update({
+  id: '/produk/tambah',
+  path: '/produk/tambah',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProdukNonaktifRoute = ProdukNonaktifRouteImport.update({
@@ -226,6 +232,7 @@ export interface FileRoutesByFullPath {
   '/produk/draft': typeof ProdukDraftRoute
   '/produk/mapping': typeof ProdukMappingRoute
   '/produk/nonaktif': typeof ProdukNonaktifRoute
+  '/produk/tambah': typeof ProdukTambahRoute
   '/gudang/': typeof GudangIndexRoute
   '/pesanan/': typeof PesananIndexRoute
   '/produk/': typeof ProdukIndexRoute
@@ -259,6 +266,7 @@ export interface FileRoutesByTo {
   '/produk/draft': typeof ProdukDraftRoute
   '/produk/mapping': typeof ProdukMappingRoute
   '/produk/nonaktif': typeof ProdukNonaktifRoute
+  '/produk/tambah': typeof ProdukTambahRoute
   '/gudang': typeof GudangIndexRoute
   '/pesanan': typeof PesananIndexRoute
   '/produk': typeof ProdukIndexRoute
@@ -293,6 +301,7 @@ export interface FileRoutesById {
   '/produk/draft': typeof ProdukDraftRoute
   '/produk/mapping': typeof ProdukMappingRoute
   '/produk/nonaktif': typeof ProdukNonaktifRoute
+  '/produk/tambah': typeof ProdukTambahRoute
   '/gudang/': typeof GudangIndexRoute
   '/pesanan/': typeof PesananIndexRoute
   '/produk/': typeof ProdukIndexRoute
@@ -328,6 +337,7 @@ export interface FileRouteTypes {
     | '/produk/draft'
     | '/produk/mapping'
     | '/produk/nonaktif'
+    | '/produk/tambah'
     | '/gudang/'
     | '/pesanan/'
     | '/produk/'
@@ -361,6 +371,7 @@ export interface FileRouteTypes {
     | '/produk/draft'
     | '/produk/mapping'
     | '/produk/nonaktif'
+    | '/produk/tambah'
     | '/gudang'
     | '/pesanan'
     | '/produk'
@@ -394,6 +405,7 @@ export interface FileRouteTypes {
     | '/produk/draft'
     | '/produk/mapping'
     | '/produk/nonaktif'
+    | '/produk/tambah'
     | '/gudang/'
     | '/pesanan/'
     | '/produk/'
@@ -428,6 +440,7 @@ export interface RootRouteChildren {
   ProdukDraftRoute: typeof ProdukDraftRoute
   ProdukMappingRoute: typeof ProdukMappingRoute
   ProdukNonaktifRoute: typeof ProdukNonaktifRoute
+  ProdukTambahRoute: typeof ProdukTambahRoute
   GudangIndexRoute: typeof GudangIndexRoute
   PesananIndexRoute: typeof PesananIndexRoute
   ProdukIndexRoute: typeof ProdukIndexRoute
@@ -503,6 +516,13 @@ declare module '@tanstack/react-router' {
       path: '/gudang'
       fullPath: '/gudang/'
       preLoaderRoute: typeof GudangIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/produk/tambah': {
+      id: '/produk/tambah'
+      path: '/produk/tambah'
+      fullPath: '/produk/tambah'
+      preLoaderRoute: typeof ProdukTambahRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/produk/nonaktif': {
@@ -684,6 +704,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProdukDraftRoute: ProdukDraftRoute,
   ProdukMappingRoute: ProdukMappingRoute,
   ProdukNonaktifRoute: ProdukNonaktifRoute,
+  ProdukTambahRoute: ProdukTambahRoute,
   GudangIndexRoute: GudangIndexRoute,
   PesananIndexRoute: PesananIndexRoute,
   ProdukIndexRoute: ProdukIndexRoute,
