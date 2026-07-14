@@ -9,8 +9,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Search, Download, Upload, Plus, Edit2, Trash2, MoreVertical, Loader2 } from "lucide-react";
-import { products, warehouses, stock } from "@/services/data";
-import { warehouseSKUs, updateWarehouseSKU } from "@/services/warehouse-master";
+import { products } from "@/services/data";
+import { ensureWarehouseSKUsLoaded, warehouseSKUs } from "@/services/warehouse-master";
 import { formatNumber } from "@/lib/format";
 import { getAuthHeaders } from "@/lib/auth";
 import { toast } from "sonner";
@@ -45,17 +45,13 @@ export const Route = createFileRoute("/gudang/stock")({
 // ==================== Helper Components ====================
 
 function StockStatusBadge({ available, total }: { available: number; total: number }) {
-  if (total === 0) {
+  if (total <= 0) {
     return <Badge className="bg-red-100 text-red-800 border-red-300">Habis</Badge>;
   }
-  const percentage = (available / total) * 100;
-  if (percentage === 0) {
-    return <Badge className="bg-red-100 text-red-800 border-red-300">Habis</Badge>;
+  if (total <= 5) {
+    return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-300">Hampir Habis</Badge>;
   }
-  if (percentage <= 20) {
-    return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-300">Rendah</Badge>;
-  }
-  return <Badge className="bg-green-100 text-green-800 border-green-300">Normal</Badge>;
+  return <Badge className="bg-green-100 text-green-800 border-green-300">Aktif</Badge>;
 }
 
 function CategoryBadge({ category }: { category?: string }) {
@@ -276,7 +272,6 @@ interface EditHargaIndividualProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   sku: (WarehouseSKU & { category?: string; productInfo?: any }) | null;
-  type: "modal" | "jual";
   onSave: (newPrice: number) => Promise<void>;
 }
 
@@ -284,7 +279,6 @@ function EditHargaIndividualModal({
   open,
   onOpenChange,
   sku,
-  type,
   onSave,
 }: EditHargaIndividualProps) {
   const [newPrice, setNewPrice] = useState("");
@@ -292,14 +286,14 @@ function EditHargaIndividualModal({
 
   useEffect(() => {
     if (open && sku) {
-      setNewPrice(type === "modal" ? String(sku.costPrice) : String(sku.sellingPrice));
+      setNewPrice(String(sku.costPrice));
     }
-  }, [open, sku, type]);
+  }, [open, sku]);
 
   if (!sku) return null;
 
-  const oldPrice = type === "modal" ? sku.costPrice : sku.sellingPrice;
-  const title = type === "modal" ? "Edit Harga Modal" : "Edit Harga Jual";
+  const oldPrice = sku.costPrice;
+  const title = "Edit Harga Modal";
 
   const handleSave = async () => {
     if (!newPrice) {
@@ -329,12 +323,12 @@ function EditHargaIndividualModal({
       syncPromise
         .then(() => {
           console.log(`[EDIT] Sync completed`);
-          toast.success(`Harga ${type === "modal" ? "modal" : "jual"} SKU berhasil diperbarui`);
+          toast.success("Harga modal SKU berhasil diperbarui");
         })
         .catch((error) => {
           console.error(`[EDIT] Sync failed:`, error);
           const errorMsg = error instanceof Error ? error.message : String(error);
-          toast.error(`Gagal memperbarui harga ${type === "modal" ? "modal" : "jual"}: ${errorMsg}`);
+          toast.error(`Gagal memperbarui harga modal: ${errorMsg}`);
         });
     } finally {
       console.log(`[EDIT] Setting loading to false`);
@@ -409,7 +403,6 @@ function StockPage() {
   // Modal state
   const [showUpdateHargaModalBulk, setShowUpdateHargaModalBulk] = useState(false);
   const [showEditHargaIndividual, setShowEditHargaIndividual] = useState(false);
-  const [editingHargaType, setEditingHargaType] = useState<"modal" | "jual">("modal");
   const [editingHargaSku, setEditingHargaSku] = useState<(WarehouseSKU & { category?: string; productInfo?: any }) | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   
@@ -417,56 +410,20 @@ function StockPage() {
   const [lastSyncTime, setLastSyncTime] = useState<number | null>(null);
 
   useEffect(() => {
-    const loadWarehouseSkusFromApi = async () => {
-      try {
-        const response = await fetch("/api/warehouse-skus", {
-          headers: {
-            ...getAuthHeaders(),
-          },
-        });
-
-        const payload = await response.json();
-        if (!response.ok) {
-          throw new Error(payload?.error || "Gagal mengambil warehouse SKU");
-        }
-
-        const rows = (payload?.data ?? []) as BackendWarehouseSkuRow[];
-        const mappedRows: WarehouseSKU[] = rows.map((row) => ({
-          id: String(row.id),
-          warehouseId: row.warehouse_id,
-          skuCode: row.sku_code,
-          productName: row.product_name,
-          color: row.color ?? undefined,
-          size: row.size ?? undefined,
-          costPrice: Number(row.cost_price),
-          sellingPrice: Number(row.selling_price),
-          totalStock: Number(row.total_stock),
-          reservedStock: Number(row.reserved_stock),
-          weightGram: row.weight_gram ?? undefined,
-          dimensions:
-            row.dimension_length != null && row.dimension_width != null && row.dimension_height != null
-              ? {
-                  length: Number(row.dimension_length),
-                  width: Number(row.dimension_width),
-                  height: Number(row.dimension_height),
-                }
-              : undefined,
-          barcode: row.barcode ?? undefined,
-          variantId: row.variant_id ?? undefined,
-          createdAt: row.created_at,
-          updatedAt: row.updated_at,
-        }));
-
-        warehouseSKUs.splice(0, warehouseSKUs.length, ...mappedRows);
-        console.log("[GET /api/warehouse-skus] IDs:", mappedRows.map((sku) => sku.id));
-        setLastSyncTime(Date.now());
-        setRefreshKey((k) => k + 1);
-      } catch (error) {
-        console.error("[GET /api/warehouse-skus] Error:", error);
-      }
+    const syncWarehouseRows = async () => {
+      await ensureWarehouseSKUsLoaded(true);
+      setLastSyncTime(Date.now());
+      setRefreshKey((k) => k + 1);
     };
 
-    void loadWarehouseSkusFromApi();
+    const handleStockUpdated = () => {
+      setLastSyncTime(Date.now());
+      setRefreshKey((k) => k + 1);
+    };
+
+    void syncWarehouseRows();
+    window.addEventListener("stock-updated", handleStockUpdated);
+    return () => window.removeEventListener("stock-updated", handleStockUpdated);
   }, []);
 
   // Aggregate warehouse SKU data with product info
@@ -476,11 +433,17 @@ function StockPage() {
     const rows: (WarehouseSKU & { category?: string; productInfo?: any })[] = [];
 
     warehouseSKUs.forEach((wsku) => {
-      // Find related product
-      const product = products.find((p) => p.id === wsku.variantId?.split("-")[0]);
+      // Find related product/variant from existing product source
+      const product = products.find(
+        (p) => p.variants.some((variant) => variant.id === wsku.variantId || variant.sku === wsku.skuCode)
+      );
+      const productVariant = product?.variants.find(
+        (variant) => variant.id === wsku.variantId || variant.sku === wsku.skuCode
+      );
       
       rows.push({
         ...wsku,
+        sellingPrice: productVariant?.price ?? wsku.sellingPrice,
         category: product?.category,
         productInfo: product,
       });
@@ -514,12 +477,9 @@ function StockPage() {
     // Status filter
     if (statusFilter !== "all") {
       filtered = filtered.filter((r) => {
-        const available = r.totalStock - r.reservedStock;
-        const percentage = (available / r.totalStock) * 100;
-
-        if (statusFilter === "empty") return percentage === 0;
-        if (statusFilter === "low") return percentage > 0 && percentage <= 20;
-        if (statusFilter === "normal") return percentage > 20;
+        if (statusFilter === "empty") return r.totalStock <= 0;
+        if (statusFilter === "low") return r.totalStock >= 1 && r.totalStock <= 5;
+        if (statusFilter === "normal") return r.totalStock > 5;
         return true;
       });
     }
@@ -659,6 +619,7 @@ function StockPage() {
       }
 
       console.log(`[SYNC] ✓ SKU "${sku.skuCode}" synced successfully`);
+      window.dispatchEvent(new Event("stock-updated"));
     } catch (error) {
       console.error(`[SYNC] Error for SKU ${skuId}:`, error);
       throw error;
@@ -699,13 +660,6 @@ function StockPage() {
 
   const handleEditHargaModalClick = (sku: WarehouseSKU & { category?: string; productInfo?: any }) => {
     setEditingHargaSku(sku);
-    setEditingHargaType("modal");
-    setShowEditHargaIndividual(true);
-  };
-
-  const handleEditHargaJualClick = (sku: WarehouseSKU & { category?: string; productInfo?: any }) => {
-    setEditingHargaSku(sku);
-    setEditingHargaType("jual");
     setShowEditHargaIndividual(true);
   };
 
@@ -713,12 +667,8 @@ function StockPage() {
     if (!editingHargaSku) return;
 
     try {
-      console.log(`[HANDLER] Starting edit save for SKU ${editingHargaSku.id}, type=${editingHargaType}`);
-      if (editingHargaType === "modal") {
-        await syncPricingChanges(editingHargaSku.id, newPrice);
-      } else {
-        await syncPricingChanges(editingHargaSku.id, undefined, newPrice);
-      }
+      console.log(`[HANDLER] Starting edit save for SKU ${editingHargaSku.id}`);
+      await syncPricingChanges(editingHargaSku.id, newPrice);
       console.log(`[HANDLER] Edit save completed`);
     } catch (error) {
       console.error(`[HANDLER] ERROR:`, error);
@@ -760,8 +710,8 @@ function StockPage() {
               className="px-3 py-2 text-sm border rounded-md bg-white"
             >
               <option value="all">Semua Status</option>
-              <option value="normal">Normal</option>
-              <option value="low">Rendah</option>
+              <option value="normal">Aktif</option>
+              <option value="low">Hampir Habis</option>
               <option value="empty">Habis</option>
             </select>
 
@@ -859,12 +809,6 @@ function StockPage() {
                   Harga Jual
                 </th>
                 <th className="px-4 py-3 text-right text-xs font-semibold uppercase text-muted-foreground">
-                  Reserved
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-semibold uppercase text-muted-foreground">
-                  Available
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-semibold uppercase text-muted-foreground">
                   Total Stock
                 </th>
                 <th className="px-4 py-3 text-center text-xs font-semibold uppercase text-muted-foreground">
@@ -878,7 +822,7 @@ function StockPage() {
             <tbody className="divide-y divide-border">
               {filteredRows.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="px-4 py-12 text-center text-muted-foreground">
+                  <td colSpan={10} className="px-4 py-12 text-center text-muted-foreground">
                     Tidak ada data SKU
                   </td>
                 </tr>
@@ -942,19 +886,7 @@ function StockPage() {
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-1">
                           <span className="font-mono text-sm">{formatCurrency(row.sellingPrice)}</span>
-                          <button 
-                            onClick={() => handleEditHargaJualClick(row)}
-                            className="text-muted-foreground hover:text-foreground p-1 transition-colors"
-                          >
-                            <Edit2 className="h-3.5 w-3.5" />
-                          </button>
                         </div>
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <span className="font-mono">{formatNumber(row.reservedStock)}</span>
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <span className="font-mono font-semibold">{formatNumber(available)}</span>
                       </td>
                       <td className="px-4 py-3 text-right">
                         <span className="font-mono font-bold">{formatNumber(row.totalStock)}</span>
@@ -989,7 +921,6 @@ function StockPage() {
         open={showEditHargaIndividual}
         onOpenChange={setShowEditHargaIndividual}
         sku={editingHargaSku}
-        type={editingHargaType}
         onSave={handleEditHargaIndividualSave}
       />
     </div>

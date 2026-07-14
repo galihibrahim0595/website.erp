@@ -5,7 +5,7 @@ import type {
   Product, ProductVariant, Warehouse, WarehouseStockRow,
   Order, Supplier, Customer, StockMovement,
 } from "@/types";
-import { initializeWarehouseMasterData } from "./warehouse-master";
+import { initializeWarehouseMasterData, warehouseSKUs } from "./warehouse-master";
 
 // -------------------- Warehouses --------------------
 // Single Warehouse System
@@ -101,6 +101,11 @@ products.forEach((p) => {
 });
 
 export function getVariantStock(variantId: string): number {
+  const warehouseRows = warehouseSKUs.filter((sku) => sku.variantId === variantId);
+  if (warehouseRows.length > 0) {
+    return warehouseRows.reduce((sum, sku) => sum + sku.totalStock, 0);
+  }
+
   return stock
     .filter((s) => s.variantId === variantId)
     .reduce((sum, s) => sum + s.available, 0);

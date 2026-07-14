@@ -12,6 +12,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { PageHeader } from "@/components/layout/AppLayout";
 import { cn } from "@/lib/utils";
 import { products as allProducts, getProductStock, getVariantStock, getProductMappingStatus, setProductStatus, deleteProduct } from "@/services/data";
+import { ensureWarehouseSKUsLoaded } from "@/services/warehouse-master";
 import type { Product, ProductStatus, Marketplace } from "@/types";
 import { formatIDR, formatNumber, timeAgo } from "@/lib/format";
 
@@ -58,6 +59,7 @@ export function ProductsPage({
 
   useEffect(() => {
     const handleStockUpdated = () => setRefreshKey((value) => value + 1);
+    void ensureWarehouseSKUsLoaded();
     window.addEventListener("stock-updated", handleStockUpdated);
     return () => window.removeEventListener("stock-updated", handleStockUpdated);
   }, []);

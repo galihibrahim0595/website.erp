@@ -9,7 +9,7 @@ import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription, Dr
 import { Search, Download, Upload, Zap, Plus, Link2, Edit, Trash2, Loader2, X, ChevronRight } from "lucide-react";
 import { products } from "@/services/data";
 import { stock } from "@/services/data";
-import { getWarehouseSKUByCode, warehouseSKUs } from "@/services/warehouse-master";
+import { ensureWarehouseSKUsLoaded, getWarehouseSKUByCode, warehouseSKUs } from "@/services/warehouse-master";
 import { warehouses } from "@/services/data";
 import { getAuthToken } from "@/lib/auth";
 import { DetailMappingModal } from "@/components/mapping/DetailMappingModal";
@@ -462,10 +462,18 @@ function MappingPage() {
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<WarehouseSkuMapping | null>(null);
+  const [warehouseVersion, setWarehouseVersion] = useState(0);
 
   // Load mappings on mount
   useEffect(() => {
     loadMappings();
+  }, []);
+
+  useEffect(() => {
+    void ensureWarehouseSKUsLoaded();
+    const handleStockUpdated = () => setWarehouseVersion((v) => v + 1);
+    window.addEventListener("stock-updated", handleStockUpdated);
+    return () => window.removeEventListener("stock-updated", handleStockUpdated);
   }, []);
 
   const loadMappings = useCallback(async () => {
@@ -567,7 +575,7 @@ function MappingPage() {
     });
 
     return Object.values(dataMap);
-  }, [allMappings]);
+  }, [allMappings, warehouseVersion]);
 
   // Apply filters and search
   const filteredData = useMemo(() => {
