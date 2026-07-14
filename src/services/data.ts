@@ -5,6 +5,7 @@ import type {
   Product, ProductVariant, Warehouse, WarehouseStockRow,
   Order, Supplier, Customer, StockMovement,
 } from "@/types";
+import { initializeWarehouseMasterData } from "./warehouse-master";
 
 // -------------------- Warehouses --------------------
 export const warehouses: Warehouse[] = [
@@ -303,3 +304,7 @@ export const stockMovements: StockMovement[] = Array.from({ length: 30 }, (_, i)
     reference: `REF-${1000 + i}`,
   };
 });
+
+// -------------------- Initialize Warehouse Master Data ====================
+// This runs once on app startup to populate the master data
+initializeWarehouseMasterData();

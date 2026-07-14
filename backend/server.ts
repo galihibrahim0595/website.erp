@@ -110,6 +110,28 @@ function initDatabase() {
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(marketplace_variant_id, warehouse_sku)
     );
+
+    CREATE TABLE IF NOT EXISTS warehouse_skus (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      warehouse_id TEXT NOT NULL,
+      sku_code TEXT NOT NULL,
+      product_name TEXT NOT NULL,
+      color TEXT,
+      size TEXT,
+      cost_price REAL NOT NULL,
+      selling_price REAL NOT NULL,
+      total_stock INTEGER NOT NULL DEFAULT 0,
+      reserved_stock INTEGER NOT NULL DEFAULT 0,
+      weight_gram REAL,
+      dimension_length REAL,
+      dimension_width REAL,
+      dimension_height REAL,
+      barcode TEXT,
+      variant_id TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(warehouse_id, sku_code)
+    );
   `);
 
   const existing = db.prepare("SELECT COUNT(*) AS count FROM users").get();
@@ -537,6 +559,237 @@ app.delete("/api/sku-mappings/:id", authenticateToken, (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Gagal menghapus mapping" });
+  }
+});
+
+// ==================== Warehouse SKU Master Data Endpoints ====================
+
+app.get("/api/warehouse-skus", authenticateToken, (req, res) => {
+  try {
+    const warehouseId = req.query.warehouseId as string | undefined;
+    
+    let query = "SELECT * FROM warehouse_skus";
+    const params: any[] = [];
+    
+    if (warehouseId) {
+      query += " WHERE warehouse_id = ?";
+      params.push(warehouseId);
+    }
+    
+    const rows = db.prepare(query).all(...params);
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Gagal mengambil warehouse SKU" });
+  }
+});
+
+app.get("/api/warehouse-skus/:id", authenticateToken, (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (Number.isNaN(id)) {
+      return res.status(400).json({ error: "Invalid warehouse SKU ID" });
+    }
+    
+    const row = db.prepare("SELECT * FROM warehouse_skus WHERE id = ?").get(id);
+    if (!row) {
+      return res.status(404).json({ error: "Warehouse SKU not found" });
+    }
+    
+    res.json({ success: true, data: row });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Gagal mengambil warehouse SKU" });
+  }
+});
+
+app.get("/api/warehouse-skus/by-code/:code", authenticateToken, (req, res) => {
+  try {
+    const { code } = req.params;
+    const warehouseId = req.query.warehouseId as string | undefined;
+    
+    let query = "SELECT * FROM warehouse_skus WHERE sku_code = ?";
+    const params: any[] = [code];
+    
+    if (warehouseId) {
+      query += " AND warehouse_id = ?";
+      params.push(warehouseId);
+    }
+    
+    const rows = db.prepare(query).all(...params);
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Gagal mengambil warehouse SKU" });
+  }
+});
+
+app.post("/api/warehouse-skus", authenticateToken, (req, res) => {
+  try {
+    const {
+      warehouse_id,
+      sku_code,
+      product_name,
+      color,
+      size,
+      cost_price,
+      selling_price,
+      total_stock,
+      reserved_stock,
+      weight_gram,
+      dimension_length,
+      dimension_width,
+      dimension_height,
+      barcode,
+      variant_id,
+    } = req.body;
+    
+    if (!warehouse_id || !sku_code || !product_name || cost_price === undefined || selling_price === undefined) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+    
+    const stmt = db.prepare(`
+      INSERT INTO warehouse_skus (
+        warehouse_id, sku_code, product_name, color, size,
+        cost_price, selling_price, total_stock, reserved_stock,
+        weight_gram, dimension_length, dimension_width, dimension_height,
+        barcode, variant_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    
+    const result = stmt.run(
+      warehouse_id,
+      sku_code,
+      product_name,
+      color,
+      size,
+      cost_price,
+      selling_price,
+      total_stock ?? 0,
+      reserved_stock ?? 0,
+      weight_gram,
+      dimension_length,
+      dimension_width,
+      dimension_height,
+      barcode,
+      variant_id
+    );
+    
+    res.status(201).json({
+      success: true,
+      data: { id: result.lastInsertRowid, ...req.body },
+    });
+  } catch (error: any) {
+    console.error(error);
+    if (error.message?.includes("UNIQUE constraint failed")) {
+      return res.status(409).json({ error: "Warehouse SKU sudah ada untuk SKU code ini" });
+    }
+    res.status(500).json({ error: "Gagal membuat warehouse SKU" });
+  }
+});
+
+app.put("/api/warehouse-skus/:id", authenticateToken, (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (Number.isNaN(id)) {
+      return res.status(400).json({ error: "Invalid warehouse SKU ID" });
+    }
+    
+    const {
+      cost_price,
+      selling_price,
+      total_stock,
+      reserved_stock,
+      product_name,
+      weight_gram,
+      dimension_length,
+      dimension_width,
+      dimension_height,
+      barcode,
+    } = req.body;
+    
+    // Only allow updating certain fields
+    const updates: string[] = [];
+    const params: any[] = [];
+    
+    if (cost_price !== undefined) {
+      updates.push("cost_price = ?");
+      params.push(cost_price);
+    }
+    if (selling_price !== undefined) {
+      updates.push("selling_price = ?");
+      params.push(selling_price);
+    }
+    if (total_stock !== undefined) {
+      updates.push("total_stock = ?");
+      params.push(total_stock);
+    }
+    if (reserved_stock !== undefined) {
+      updates.push("reserved_stock = ?");
+      params.push(reserved_stock);
+    }
+    if (product_name !== undefined) {
+      updates.push("product_name = ?");
+      params.push(product_name);
+    }
+    if (weight_gram !== undefined) {
+      updates.push("weight_gram = ?");
+      params.push(weight_gram);
+    }
+    if (dimension_length !== undefined) {
+      updates.push("dimension_length = ?");
+      params.push(dimension_length);
+    }
+    if (dimension_width !== undefined) {
+      updates.push("dimension_width = ?");
+      params.push(dimension_width);
+    }
+    if (dimension_height !== undefined) {
+      updates.push("dimension_height = ?");
+      params.push(dimension_height);
+    }
+    if (barcode !== undefined) {
+      updates.push("barcode = ?");
+      params.push(barcode);
+    }
+    
+    if (updates.length === 0) {
+      return res.status(400).json({ error: "No fields to update" });
+    }
+    
+    updates.push("updated_at = CURRENT_TIMESTAMP");
+    params.push(id);
+    
+    const query = `UPDATE warehouse_skus SET ${updates.join(", ")} WHERE id = ?`;
+    const result = db.prepare(query).run(...params);
+    
+    if (result.changes === 0) {
+      return res.status(404).json({ error: "Warehouse SKU not found" });
+    }
+    
+    res.json({ success: true, message: "Warehouse SKU updated" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Gagal memperbarui warehouse SKU" });
+  }
+});
+
+app.delete("/api/warehouse-skus/:id", authenticateToken, (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (Number.isNaN(id)) {
+      return res.status(400).json({ error: "Invalid warehouse SKU ID" });
+    }
+    
+    const result = db.prepare("DELETE FROM warehouse_skus WHERE id = ?").run(id);
+    if (result.changes === 0) {
+      return res.status(404).json({ error: "Warehouse SKU not found" });
+    }
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Gagal menghapus warehouse SKU" });
   }
 });
 

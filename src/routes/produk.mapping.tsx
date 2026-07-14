@@ -9,6 +9,8 @@ import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription, Dr
 import { Search, Download, Upload, Zap, Plus, Link2, Edit, Trash2, Loader2, X, ChevronRight } from "lucide-react";
 import { products } from "@/services/data";
 import { stock } from "@/services/data";
+import { getWarehouseSKUByCode, warehouseSKUs } from "@/services/warehouse-master";
+import { warehouses } from "@/services/data";
 import { getAuthToken } from "@/lib/auth";
 import { DetailMappingModal } from "@/components/mapping/DetailMappingModal";
 import type { ProductVariant } from "@/types";
@@ -18,6 +20,55 @@ export const Route = createFileRoute("/produk/mapping")({
   head: () => ({ meta: [{ title: "Mapping SKU — NovaOMS" }] }),
   component: MappingPage,
 });
+
+// ==================== Helper Functions for Master Data ====================
+
+/**
+ * Get pricing and stock data from warehouse master
+ * This ensures single source of truth from Gudang > Stock
+ */
+function getWarehouseSKUData(skuCode: string) {
+  // Try to find warehouse SKU master data
+  // For now, find first match and aggregate from all warehouses
+  const masterSkus = warehouseSKUs.filter((sku) => sku.skuCode === skuCode);
+  
+  if (masterSkus.length === 0) {
+    // Fallback to old data if warehouse master not available
+    return {
+      costPrice: 0,
+      sellingPrice: 0,
+      totalStock: 0,
+      reservedStock: 0,
+      availableStock: 0,
+    };
+  }
+
+  // Aggregate from all warehouses
+  let totalCostPrice = 0;
+  let totalSellingPrice = 0;
+  let totalStock = 0;
+  let totalReservedStock = 0;
+
+  masterSkus.forEach((sku) => {
+    totalCostPrice += sku.costPrice;
+    totalSellingPrice += sku.sellingPrice;
+    totalStock += sku.totalStock;
+    totalReservedStock += sku.reservedStock;
+  });
+
+  // Average price (use first warehouse's price for consistency)
+  const costPrice = masterSkus[0].costPrice;
+  const sellingPrice = masterSkus[0].sellingPrice;
+  const availableStock = totalStock - totalReservedStock;
+
+  return {
+    costPrice,
+    sellingPrice,
+    totalStock,
+    reservedStock: totalReservedStock,
+    availableStock,
+  };
+}
 
 // ==================== Dummy Data ====================
 
@@ -468,9 +519,8 @@ function MappingPage() {
         const warehouseSku = `${product.masterSku}-${variant.color?.slice(0, 3) || ""}-${variant.size || ""}`.toUpperCase().trim();
 
         if (!dataMap[warehouseSku]) {
-          // Get stock for this variant
-          const variantStock = stock.filter((s) => s.variantId === variant.id);
-          const totalStock = variantStock.reduce((sum, s) => sum + s.available, 0);
+          // Get data from warehouse master (single source of truth)
+          const masterData = getWarehouseSKUData(warehouseSku);
 
           dataMap[warehouseSku] = {
             warehouseSku,
@@ -479,9 +529,9 @@ function MappingPage() {
             variantId: variant.id,
             marketplacesSku: variant.sku,
             photo: product.photo,
-            hargaModal: variant.price * 0.6, // 60% assumed as cost
-            hargaJual: variant.price,
-            totalStock,
+            hargaModal: masterData.costPrice || variant.price * 0.6, // fallback to old formula
+            hargaJual: masterData.sellingPrice || variant.price,
+            totalStock: masterData.totalStock,
             barcode: variant.barcode,
             marketplaceMappings: [],
           };
