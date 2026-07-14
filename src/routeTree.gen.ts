@@ -35,7 +35,6 @@ import { Route as MarketplaceTokopediaRouteImport } from './routes/marketplace.t
 import { Route as MarketplaceTiktokRouteImport } from './routes/marketplace.tiktok'
 import { Route as MarketplaceShopeeRouteImport } from './routes/marketplace.shopee'
 import { Route as MarketplaceLazadaRouteImport } from './routes/marketplace.lazada'
-import { Route as GudangTransferRouteImport } from './routes/gudang.transfer'
 import { Route as GudangStockRouteImport } from './routes/gudang.stock'
 import { Route as GudangPenyesuaianRouteImport } from './routes/gudang.penyesuaian'
 import { Route as GudangOpnameRouteImport } from './routes/gudang.opname'
@@ -172,11 +171,6 @@ const MarketplaceLazadaRoute = MarketplaceLazadaRouteImport.update({
   path: '/marketplace/lazada',
   getParentRoute: () => rootRouteImport,
 } as any)
-const GudangTransferRoute = GudangTransferRouteImport.update({
-  id: '/gudang/transfer',
-  path: '/gudang/transfer',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const GudangStockRoute = GudangStockRouteImport.update({
   id: '/gudang/stock',
   path: '/gudang/stock',
@@ -216,7 +210,6 @@ export interface FileRoutesByFullPath {
   '/gudang/opname': typeof GudangOpnameRoute
   '/gudang/penyesuaian': typeof GudangPenyesuaianRoute
   '/gudang/stock': typeof GudangStockRoute
-  '/gudang/transfer': typeof GudangTransferRoute
   '/marketplace/lazada': typeof MarketplaceLazadaRoute
   '/marketplace/shopee': typeof MarketplaceShopeeRoute
   '/marketplace/tiktok': typeof MarketplaceTiktokRoute
@@ -250,7 +243,6 @@ export interface FileRoutesByTo {
   '/gudang/opname': typeof GudangOpnameRoute
   '/gudang/penyesuaian': typeof GudangPenyesuaianRoute
   '/gudang/stock': typeof GudangStockRoute
-  '/gudang/transfer': typeof GudangTransferRoute
   '/marketplace/lazada': typeof MarketplaceLazadaRoute
   '/marketplace/shopee': typeof MarketplaceShopeeRoute
   '/marketplace/tiktok': typeof MarketplaceTiktokRoute
@@ -285,7 +277,6 @@ export interface FileRoutesById {
   '/gudang/opname': typeof GudangOpnameRoute
   '/gudang/penyesuaian': typeof GudangPenyesuaianRoute
   '/gudang/stock': typeof GudangStockRoute
-  '/gudang/transfer': typeof GudangTransferRoute
   '/marketplace/lazada': typeof MarketplaceLazadaRoute
   '/marketplace/shopee': typeof MarketplaceShopeeRoute
   '/marketplace/tiktok': typeof MarketplaceTiktokRoute
@@ -321,7 +312,6 @@ export interface FileRouteTypes {
     | '/gudang/opname'
     | '/gudang/penyesuaian'
     | '/gudang/stock'
-    | '/gudang/transfer'
     | '/marketplace/lazada'
     | '/marketplace/shopee'
     | '/marketplace/tiktok'
@@ -355,7 +345,6 @@ export interface FileRouteTypes {
     | '/gudang/opname'
     | '/gudang/penyesuaian'
     | '/gudang/stock'
-    | '/gudang/transfer'
     | '/marketplace/lazada'
     | '/marketplace/shopee'
     | '/marketplace/tiktok'
@@ -389,7 +378,6 @@ export interface FileRouteTypes {
     | '/gudang/opname'
     | '/gudang/penyesuaian'
     | '/gudang/stock'
-    | '/gudang/transfer'
     | '/marketplace/lazada'
     | '/marketplace/shopee'
     | '/marketplace/tiktok'
@@ -424,7 +412,6 @@ export interface RootRouteChildren {
   GudangOpnameRoute: typeof GudangOpnameRoute
   GudangPenyesuaianRoute: typeof GudangPenyesuaianRoute
   GudangStockRoute: typeof GudangStockRoute
-  GudangTransferRoute: typeof GudangTransferRoute
   MarketplaceLazadaRoute: typeof MarketplaceLazadaRoute
   MarketplaceShopeeRoute: typeof MarketplaceShopeeRoute
   MarketplaceTiktokRoute: typeof MarketplaceTiktokRoute
@@ -630,13 +617,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MarketplaceLazadaRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/gudang/transfer': {
-      id: '/gudang/transfer'
-      path: '/gudang/transfer'
-      fullPath: '/gudang/transfer'
-      preLoaderRoute: typeof GudangTransferRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/gudang/stock': {
       id: '/gudang/stock'
       path: '/gudang/stock'
@@ -688,7 +668,6 @@ const rootRouteChildren: RootRouteChildren = {
   GudangOpnameRoute: GudangOpnameRoute,
   GudangPenyesuaianRoute: GudangPenyesuaianRoute,
   GudangStockRoute: GudangStockRoute,
-  GudangTransferRoute: GudangTransferRoute,
   MarketplaceLazadaRoute: MarketplaceLazadaRoute,
   MarketplaceShopeeRoute: MarketplaceShopeeRoute,
   MarketplaceTiktokRoute: MarketplaceTiktokRoute,

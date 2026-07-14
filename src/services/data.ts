@@ -8,10 +8,9 @@ import type {
 import { initializeWarehouseMasterData } from "./warehouse-master";
 
 // -------------------- Warehouses --------------------
+// Single Warehouse System
 export const warehouses: Warehouse[] = [
-  { id: "wh-1", name: "Gudang Jakarta Pusat", location: "Jakarta" },
-  { id: "wh-2", name: "Gudang Surabaya", location: "Surabaya" },
-  { id: "wh-3", name: "Gudang Bandung", location: "Bandung" },
+  { id: "wh-1", name: "Gudang Utama", location: "Jakarta" },
 ];
 
 // -------------------- Suppliers --------------------

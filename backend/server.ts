@@ -690,10 +690,13 @@ app.post("/api/warehouse-skus", authenticateToken, (req, res) => {
 
 app.put("/api/warehouse-skus/:id", authenticateToken, (req, res) => {
   try {
-    const id = Number(req.params.id);
-    if (Number.isNaN(id)) {
+    const id = req.params.id;  // ✅ FIXED: Accept string ID, not Number
+    
+    if (!id || typeof id !== "string") {
       return res.status(400).json({ error: "Invalid warehouse SKU ID" });
     }
+    
+    console.log(`[API] PUT /api/warehouse-skus/${id}`, req.body);  // ✅ DEBUGGING
     
     const {
       cost_price,
@@ -761,13 +764,18 @@ app.put("/api/warehouse-skus/:id", authenticateToken, (req, res) => {
     params.push(id);
     
     const query = `UPDATE warehouse_skus SET ${updates.join(", ")} WHERE id = ?`;
+    console.log(`[API] Query: ${query}`, params);  // ✅ DEBUGGING
+    
     const result = db.prepare(query).run(...params);
+    
+    console.log(`[API] Update result:`, result);  // ✅ DEBUGGING
     
     if (result.changes === 0) {
       return res.status(404).json({ error: "Warehouse SKU not found" });
     }
     
-    res.json({ success: true, message: "Warehouse SKU updated" });
+    console.log(`[API] ✓ Successfully updated warehouse SKU ${id}`);  // ✅ DEBUGGING
+    res.json({ success: true, message: "Warehouse SKU updated", id });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Gagal memperbarui warehouse SKU" });
