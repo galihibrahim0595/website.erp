@@ -10,51 +10,14 @@ import { Search, Download, Upload, Zap, Plus, Link2, Edit, Trash2, Loader2, X, C
 import { products } from "@/services/data";
 import { stock } from "@/services/data";
 import { getAuthToken } from "@/lib/auth";
+import { DetailMappingModal } from "@/components/mapping/DetailMappingModal";
 import type { ProductVariant } from "@/types";
+import type { WarehouseSkuMapping, MarketplaceMapping, SkuMapping, MappingStatus, FilterMarketplace } from "@/types/mapping";
 
 export const Route = createFileRoute("/produk/mapping")({
   head: () => ({ meta: [{ title: "Mapping SKU — NovaOMS" }] }),
   component: MappingPage,
 });
-
-// ==================== Types ====================
-
-interface WarehouseSkuMapping {
-  warehouseSku: string;
-  productName: string;
-  productId: string;
-  variantId: string;
-  marketplacesSku?: string;
-  photo?: string;
-  hargaModal: number;
-  hargaJual: number;
-  totalStock: number;
-  barcode?: string;
-  marketplaceMappings: MarketplaceMapping[];
-}
-
-interface MarketplaceMapping {
-  marketplace: string;
-  count: number;
-  mappings: SkuMapping[];
-}
-
-interface SkuMapping {
-  id: number;
-  marketplace_variant_id: string;
-  marketplace: string;
-  marketplace_sku: string;
-  warehouse_sku: string;
-  product_id?: string;
-  product_name?: string;
-  color?: string;
-  size?: string;
-  created_at: string;
-  updated_at: string;
-}
-
-type MappingStatus = "all" | "mapped" | "partial" | "unmapped";
-type FilterMarketplace = "all" | "shopee" | "tokopedia" | "tiktok" | "lazada";
 
 // ==================== Dummy Data ====================
 
@@ -438,136 +401,6 @@ function MappingTable({
   );
 }
 
-// ==================== MappingDrawer ====================
-
-function MappingDrawer({
-  isOpen,
-  onOpenChange,
-  item,
-  allMappings,
-}: {
-  isOpen: boolean;
-  onOpenChange: (open: boolean) => void;
-  item: WarehouseSkuMapping | null;
-  allMappings: Record<string, SkuMapping[]>;
-}) {
-  if (!item) return null;
-
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("id-ID", {
-      style: "currency",
-      currency: "IDR",
-      minimumFractionDigits: 0,
-    }).format(value);
-  };
-
-  return (
-    <Drawer open={isOpen} onOpenChange={onOpenChange}>
-      <DrawerContent className="max-w-2xl">
-        <DrawerHeader>
-          <DrawerTitle>Mapping SKU Gudang</DrawerTitle>
-          <DrawerDescription>Hubungkan SKU gudang dengan marketplace</DrawerDescription>
-        </DrawerHeader>
-
-        <div className="px-6 py-4 space-y-6 max-h-[70vh] overflow-y-auto">
-          {/* Info Gudang */}
-          <Card className="p-4 bg-muted/30 border-0">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div>
-                <div className="text-xs font-medium text-muted-foreground mb-1">SKU Gudang</div>
-                <div className="font-mono font-semibold text-sm">{item.warehouseSku}</div>
-              </div>
-              <div>
-                <div className="text-xs font-medium text-muted-foreground mb-1">Nama Produk</div>
-                <div className="text-sm font-medium">{item.productName}</div>
-              </div>
-              <div>
-                <div className="text-xs font-medium text-muted-foreground mb-1">Harga Modal</div>
-                <div className="text-sm font-semibold">{formatCurrency(item.hargaModal)}</div>
-              </div>
-              <div>
-                <div className="text-xs font-medium text-muted-foreground mb-1">Harga Jual</div>
-                <div className="text-sm font-semibold">{formatCurrency(item.hargaJual)}</div>
-              </div>
-            </div>
-          </Card>
-
-          {/* Marketplace Mappings */}
-          <div className="space-y-4">
-            <h3 className="font-semibold">Marketplace</h3>
-
-            {["shopee", "tokopedia", "tiktok", "lazada"].map((marketplace) => {
-              const mappings = item.marketplaceMappings.find((m) => m.marketplace === marketplace)?.mappings || [];
-              return (
-                <div key={marketplace} className="space-y-2 p-3 border rounded-lg bg-muted/20">
-                  <div className="flex items-center justify-between">
-                    <div className="font-medium capitalize flex items-center gap-2">
-                      {marketplace}
-                      {mappings.length > 0 && (
-                        <Badge variant="outline" className="text-xs">
-                          {mappings.length}
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-
-                  {mappings.length > 0 ? (
-                    <div className="space-y-2 ml-2">
-                      {mappings.map((m) => (
-                        <div key={m.id} className="text-xs space-y-1 p-2 bg-white rounded border flex items-start justify-between gap-2">
-                          <div className="flex-1">
-                            <div>
-                              <span className="text-muted-foreground">Produk: </span>
-                              <span className="font-medium">{m.product_name || "-"}</span>
-                            </div>
-                            <div>
-                              <span className="text-muted-foreground">Variasi: </span>
-                              <span className="font-medium">
-                                {[m.color, m.size].filter(Boolean).join(" / ") || "-"}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2 text-muted-foreground">
-                              <span className="text-xs">SKU: {m.marketplace_sku}</span>
-                              <span>→</span>
-                              <span className="font-mono font-semibold text-foreground">{m.warehouse_sku}</span>
-                            </div>
-                          </div>
-                          <button className="text-red-600 hover:text-red-800 flex-shrink-0 mt-1">
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-xs text-muted-foreground ml-2">Belum ada mapping</div>
-                  )}
-
-                  <button className="text-xs text-blue-600 hover:text-blue-800 font-medium mt-2">
-                    + Tambah {marketplace}
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        <DrawerFooter className="border-t">
-          <div className="flex gap-2 justify-end">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Batal
-            </Button>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Tambah Marketplace
-            </Button>
-            <Button>Simpan Mapping</Button>
-          </div>
-        </DrawerFooter>
-      </DrawerContent>
-    </Drawer>
-  );
-}
-
 // ==================== Main MappingPage ====================
 
 function MappingPage() {
@@ -582,45 +415,48 @@ function MappingPage() {
 
   // Load mappings on mount
   useEffect(() => {
-    const loadMappings = async () => {
-      setIsLoadingMappings(true);
-      try {
-        const token = getAuthToken();
-        if (!token) {
-          setAllMappings(DUMMY_MAPPINGS);
-          setIsLoadingMappings(false);
-          return;
-        }
-
-        const response = await fetch("/api/sku-mappings", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
-        if (!response.ok) {
-          setAllMappings(DUMMY_MAPPINGS);
-          setIsLoadingMappings(false);
-          return;
-        }
-
-        const data = await response.json();
-        const mappingsByVariant: Record<string, SkuMapping[]> = {};
-        data.mappings.forEach((m: SkuMapping) => {
-          if (!mappingsByVariant[m.marketplace_variant_id]) {
-            mappingsByVariant[m.marketplace_variant_id] = [];
-          }
-          mappingsByVariant[m.marketplace_variant_id].push(m);
-        });
-        setAllMappings(mappingsByVariant);
-      } catch (error) {
-        console.error("Error loading mappings:", error);
-        setAllMappings(DUMMY_MAPPINGS);
-      } finally {
-        setIsLoadingMappings(false);
-      }
-    };
-
     loadMappings();
   }, []);
+
+  const loadMappings = useCallback(async () => {
+    setIsLoadingMappings(true);
+    try {
+      const token = getAuthToken();
+      if (!token) {
+        setAllMappings(DUMMY_MAPPINGS);
+        return;
+      }
+
+      const response = await fetch("/api/sku-mappings", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!response.ok) {
+        setAllMappings(DUMMY_MAPPINGS);
+        return;
+      }
+
+      const data = await response.json();
+      const mappingsByVariant: Record<string, SkuMapping[]> = {};
+      data.mappings.forEach((m: SkuMapping) => {
+        if (!mappingsByVariant[m.marketplace_variant_id]) {
+          mappingsByVariant[m.marketplace_variant_id] = [];
+        }
+        mappingsByVariant[m.marketplace_variant_id].push(m);
+      });
+      setAllMappings(mappingsByVariant);
+    } catch (error) {
+      console.error("Error loading mappings:", error);
+      setAllMappings(DUMMY_MAPPINGS);
+    } finally {
+      setIsLoadingMappings(false);
+    }
+  }, []);
+
+  // Load mappings on mount
+  useEffect(() => {
+    loadMappings();
+  }, [loadMappings]);
 
   // Build table data from products
   const tableData: WarehouseSkuMapping[] = useMemo(() => {
@@ -761,11 +597,12 @@ function MappingPage() {
         }}
       />
 
-      <MappingDrawer
+      <DetailMappingModal
         isOpen={drawerOpen}
         onOpenChange={setDrawerOpen}
         item={selectedItem}
         allMappings={allMappings}
+        onSave={loadMappings}
       />
     </div>
   );
