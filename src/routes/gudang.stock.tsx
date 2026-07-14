@@ -607,9 +607,37 @@ function StockPage() {
         payload.selling_price = newSellingPrice;
       }
 
+      let updateId = sku.id;
+      const looksLikeSyntheticId = /^wsku-|^fallback-|^dummy-/i.test(updateId);
+
+      // If local ID is synthetic, resolve the real DB ID from backend data.
+      if (looksLikeSyntheticId) {
+        const idLookupResponse = await fetch("/api/warehouse-skus", {
+          headers: {
+            ...getAuthHeaders(),
+          },
+        });
+
+        const idLookupPayload = await idLookupResponse.json();
+        if (!idLookupResponse.ok) {
+          throw new Error(idLookupPayload?.error || "Gagal mengambil warehouse SKU untuk resolve ID");
+        }
+
+        const backendRows = (idLookupPayload?.data ?? []) as BackendWarehouseSkuRow[];
+        const backendRow = backendRows.find(
+          (row) => row.warehouse_id === sku.warehouseId && row.sku_code === sku.skuCode,
+        );
+
+        if (!backendRow) {
+          throw new Error(`Backend SKU tidak ditemukan untuk ${sku.skuCode}`);
+        }
+
+        updateId = String(backendRow.id);
+      }
+
       // Call API (fire-and-forget style - errors are caught)
       console.log("Update ID:", sku.id);
-      const response = await fetch(`/api/warehouse-skus/${skuId}`, {
+      const response = await fetch(`/api/warehouse-skus/${updateId}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",

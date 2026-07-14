@@ -193,7 +193,6 @@ function MarketplaceBadge({ marketplace, count }: { marketplace: string; count: 
 
 function MappingStatusBadge({ item, onClick }: { item: WarehouseSkuMapping; onClick: () => void }) {
   const totalMappings = item.marketplaceMappings.reduce((sum, m) => sum + m.count, 0);
-  const uniqueMarketplaces = item.marketplaceMappings.length;
 
   let label: string;
   let colorClass: string;
@@ -201,11 +200,11 @@ function MappingStatusBadge({ item, onClick }: { item: WarehouseSkuMapping; onCl
   if (totalMappings === 0) {
     label = "Belum Dihubungkan";
     colorClass = "bg-red-100 text-red-800 border-red-300";
-  } else if (uniqueMarketplaces >= 3) {
+  } else if (totalMappings >= 3) {
     label = `Sudah Dihubungkan (${totalMappings})`;
     colorClass = "bg-green-100 text-green-800 border-green-300";
   } else {
-    label = `Sebagian Dihubungkan (${uniqueMarketplaces})`;
+    label = `Sebagian Dihubungkan (${totalMappings})`;
     colorClass = "bg-yellow-100 text-yellow-800 border-yellow-300";
   }
 
@@ -513,6 +512,17 @@ function MappingPage() {
   const tableData: WarehouseSkuMapping[] = useMemo(() => {
     const dataMap: Record<string, WarehouseSkuMapping> = {};
 
+    // Source of truth: mapping relation is stored by warehouse_sku
+    const mappingsByWarehouseSku: Record<string, SkuMapping[]> = {};
+    Object.values(allMappings)
+      .flat()
+      .forEach((mapping) => {
+        if (!mappingsByWarehouseSku[mapping.warehouse_sku]) {
+          mappingsByWarehouseSku[mapping.warehouse_sku] = [];
+        }
+        mappingsByWarehouseSku[mapping.warehouse_sku].push(mapping);
+      });
+
     products.forEach((product) => {
       product.variants.forEach((variant) => {
         // Create warehouse SKU (simplified)
@@ -540,16 +550,12 @@ function MappingPage() {
         // Build marketplace mappings
         const marketplaceMap: Record<string, SkuMapping[]> = {};
 
-        // Get mappings for this variant from all marketplaces
-        Object.entries(allMappings).forEach(([key, mappings]) => {
-          if (key.includes(variant.id)) {
-            mappings.forEach((m) => {
-              if (!marketplaceMap[m.marketplace]) {
-                marketplaceMap[m.marketplace] = [];
-              }
-              marketplaceMap[m.marketplace].push(m);
-            });
+        // Count mappings that are actually connected to this warehouse SKU
+        (mappingsByWarehouseSku[warehouseSku] || []).forEach((m) => {
+          if (!marketplaceMap[m.marketplace]) {
+            marketplaceMap[m.marketplace] = [];
           }
+          marketplaceMap[m.marketplace].push(m);
         });
 
         dataMap[warehouseSku].marketplaceMappings = Object.entries(marketplaceMap).map(([marketplace, mappings]) => ({
