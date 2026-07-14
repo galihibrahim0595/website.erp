@@ -12,8 +12,30 @@ import { Search, Download, Upload, Plus, Edit2, Trash2, MoreVertical, Loader2 } 
 import { products, warehouses, stock } from "@/services/data";
 import { warehouseSKUs, updateWarehouseSKU } from "@/services/warehouse-master";
 import { formatNumber } from "@/lib/format";
+import { getAuthHeaders } from "@/lib/auth";
 import { toast } from "sonner";
 import type { WarehouseSKU } from "@/types/warehouse-master";
+
+type BackendWarehouseSkuRow = {
+  id: number | string;
+  warehouse_id: string;
+  sku_code: string;
+  product_name: string;
+  color?: string | null;
+  size?: string | null;
+  cost_price: number;
+  selling_price: number;
+  total_stock: number;
+  reserved_stock: number;
+  weight_gram?: number | null;
+  dimension_length?: number | null;
+  dimension_width?: number | null;
+  dimension_height?: number | null;
+  barcode?: string | null;
+  variant_id?: string | null;
+  created_at: string;
+  updated_at: string;
+};
 
 export const Route = createFileRoute("/gudang/stock")({
   head: () => ({ meta: [{ title: "Stock Gudang — NovaOMS" }] }),
@@ -394,6 +416,59 @@ function StockPage() {
   // Sync tracking - using timestamp to guarantee re-render
   const [lastSyncTime, setLastSyncTime] = useState<number | null>(null);
 
+  useEffect(() => {
+    const loadWarehouseSkusFromApi = async () => {
+      try {
+        const response = await fetch("/api/warehouse-skus", {
+          headers: {
+            ...getAuthHeaders(),
+          },
+        });
+
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload?.error || "Gagal mengambil warehouse SKU");
+        }
+
+        const rows = (payload?.data ?? []) as BackendWarehouseSkuRow[];
+        const mappedRows: WarehouseSKU[] = rows.map((row) => ({
+          id: String(row.id),
+          warehouseId: row.warehouse_id,
+          skuCode: row.sku_code,
+          productName: row.product_name,
+          color: row.color ?? undefined,
+          size: row.size ?? undefined,
+          costPrice: Number(row.cost_price),
+          sellingPrice: Number(row.selling_price),
+          totalStock: Number(row.total_stock),
+          reservedStock: Number(row.reserved_stock),
+          weightGram: row.weight_gram ?? undefined,
+          dimensions:
+            row.dimension_length != null && row.dimension_width != null && row.dimension_height != null
+              ? {
+                  length: Number(row.dimension_length),
+                  width: Number(row.dimension_width),
+                  height: Number(row.dimension_height),
+                }
+              : undefined,
+          barcode: row.barcode ?? undefined,
+          variantId: row.variant_id ?? undefined,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+        }));
+
+        warehouseSKUs.splice(0, warehouseSKUs.length, ...mappedRows);
+        console.log("[GET /api/warehouse-skus] IDs:", mappedRows.map((sku) => sku.id));
+        setLastSyncTime(Date.now());
+        setRefreshKey((k) => k + 1);
+      } catch (error) {
+        console.error("[GET /api/warehouse-skus] Error:", error);
+      }
+    };
+
+    void loadWarehouseSkusFromApi();
+  }, []);
+
   // Aggregate warehouse SKU data with product info
   // Depend on lastSyncTime to guarantee re-render after sync completes
   const skuRows = useMemo(() => {
@@ -533,9 +608,13 @@ function StockPage() {
       }
 
       // Call API (fire-and-forget style - errors are caught)
+      console.log("Update ID:", sku.id);
       const response = await fetch(`/api/warehouse-skus/${skuId}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeaders(),
+        },
         body: JSON.stringify(payload),
       });
 

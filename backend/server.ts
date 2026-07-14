@@ -691,6 +691,7 @@ app.post("/api/warehouse-skus", authenticateToken, (req, res) => {
 app.put("/api/warehouse-skus/:id", authenticateToken, (req, res) => {
   try {
     const id = req.params.id;  // ✅ FIXED: Accept string ID, not Number
+    console.log("Param ID:", req.params.id);
     
     if (!id || typeof id !== "string") {
       return res.status(400).json({ error: "Invalid warehouse SKU ID" });
