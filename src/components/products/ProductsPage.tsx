@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { PageHeader } from "@/components/layout/AppLayout";
 import { cn } from "@/lib/utils";
-import { products as allProducts, getProductStock, getVariantStock, getProductMappingStatus, setProductStatus, deleteProduct } from "@/services/data";
+import { products as allProducts, getProductPrice, getProductStock, getVariantStock, getProductMappingStatus, setProductStatus, deleteProduct } from "@/services/data";
 import type { Product, ProductStatus, Marketplace } from "@/types";
 import { formatIDR, formatNumber, timeAgo } from "@/lib/format";
 
@@ -92,7 +92,7 @@ export function ProductsPage({
     list = [...list].sort((a, b) => {
       const dir = sortDir === "asc" ? 1 : -1;
       if (sortKey === "name") return a.name.localeCompare(b.name) * dir;
-      if (sortKey === "price") return (a.variants[0]?.price - b.variants[0]?.price) * dir;
+      if (sortKey === "price") return (getProductPrice(a.id).min - getProductPrice(b.id).min) * dir;
       if (sortKey === "stock") return (getProductStock(a.id) - getProductStock(b.id)) * dir;
       return (new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime()) * dir;
     });
@@ -243,7 +243,7 @@ export function ProductsPage({
               )}
               {pageProducts.map((p) => {
                 const isExpanded = !!expanded[p.id];
-                const priceRange = { min: Math.min(...p.variants.map(v => v.price)), max: Math.max(...p.variants.map(v => v.price)) };
+                const priceRange = getProductPrice(p.id);
                 const totalStock = getProductStock(p.id);
                 const mappingStatus = getProductMappingStatus(p);
                 return (

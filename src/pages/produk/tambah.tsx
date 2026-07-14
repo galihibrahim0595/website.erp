@@ -56,9 +56,6 @@ function TambahProdukPage() {
   const [video, setVideo] = useState<string | null>(null);
   const [sku, setSku] = useState("");
   const [description, setDescription] = useState("");
-  const [price, setPrice] = useState("");
-  const [promoPrice, setPromoPrice] = useState("");
-  const [stock, setStock] = useState("");
   const [weight, setWeight] = useState("");
   const [packageLength, setPackageLength] = useState("");
   const [packageWidth, setPackageWidth] = useState("");
@@ -221,9 +218,6 @@ function TambahProdukPage() {
     setVideo(product.video ?? null);
     setSku(product.masterSku);
     setDescription(product.description ?? "");
-    setPrice("");
-    setPromoPrice("");
-    setStock("");
     setWeight(product.weightGram ? String(product.weightGram) : "");
     setPackageLength(product.dimensions?.l ? String(product.dimensions.l) : "");
     setPackageWidth(product.dimensions?.w ? String(product.dimensions.w) : "");
@@ -1120,24 +1114,12 @@ function TambahProdukPage() {
         </Card>
 
         <Card className="p-6 space-y-5">
-          <div className="grid gap-4 lg:grid-cols-4">
-            <div className="grid gap-2">
-              <Label>Harga</Label>
-              <Input value={price} onChange={(event) => setPrice(event.target.value)} placeholder="0" />
+            <div className="grid gap-4 lg:grid-cols-1">
+              <div className="grid gap-2">
+                <Label>Berat (gram)</Label>
+                <Input value={weight} onChange={(event) => setWeight(event.target.value)} placeholder="0" />
+              </div>
             </div>
-            <div className="grid gap-2">
-              <Label>Harga Promo</Label>
-              <Input value={promoPrice} onChange={(event) => setPromoPrice(event.target.value)} placeholder="0" />
-            </div>
-            <div className="grid gap-2">
-              <Label>Stok</Label>
-              <Input value={stock} onChange={(event) => setStock(event.target.value)} placeholder="0" />
-            </div>
-            <div className="grid gap-2">
-              <Label>Berat (gram)</Label>
-              <Input value={weight} onChange={(event) => setWeight(event.target.value)} placeholder="0" />
-            </div>
-          </div>
         </Card>
 
         <Card className="p-6 space-y-5">
