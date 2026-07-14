@@ -95,6 +95,21 @@ function initDatabase() {
       video TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS sku_mappings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      marketplace_variant_id TEXT NOT NULL,
+      marketplace TEXT NOT NULL,
+      marketplace_sku TEXT NOT NULL,
+      warehouse_sku TEXT NOT NULL,
+      product_id TEXT,
+      product_name TEXT,
+      color TEXT,
+      size TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(marketplace_variant_id, warehouse_sku)
+    );
   `);
 
   const existing = db.prepare("SELECT COUNT(*) AS count FROM users").get();
@@ -388,6 +403,141 @@ app.post("/api/products", authenticateToken, (req, res) => {
 
 app.get("/api/me", authenticateToken, (req, res) => {
   res.json({ user: req.user });
+});
+
+// ============ SKU Mappings Endpoints ============
+
+app.get("/api/sku-mappings", authenticateToken, (req, res) => {
+  try {
+    const mappings = db.prepare("SELECT * FROM sku_mappings ORDER BY created_at DESC").all();
+    res.json({ mappings });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Gagal mengambil data mapping" });
+  }
+});
+
+app.get("/api/sku-mappings/variant/:variantId", authenticateToken, (req, res) => {
+  const { variantId } = req.params;
+  if (typeof variantId !== "string") {
+    return res.status(400).json({ error: "Invalid variant ID" });
+  }
+
+  try {
+    const mappings = db
+      .prepare("SELECT * FROM sku_mappings WHERE marketplace_variant_id = ?")
+      .all(variantId);
+    res.json({ mappings, count: mappings.length });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Gagal mengambil data mapping" });
+  }
+});
+
+app.post("/api/sku-mappings", authenticateToken, (req, res) => {
+  const {
+    marketplace_variant_id,
+    marketplace,
+    marketplace_sku,
+    warehouse_sku,
+    product_id,
+    product_name,
+    color,
+    size,
+  } = req.body;
+
+  // Validasi input
+  if (
+    typeof marketplace_variant_id !== "string" ||
+    typeof marketplace !== "string" ||
+    typeof marketplace_sku !== "string" ||
+    typeof warehouse_sku !== "string"
+  ) {
+    return res.status(400).json({ error: "Invalid mapping data" });
+  }
+
+  try {
+    // Hapus mapping lama untuk variant ini jika ada
+    db.prepare("DELETE FROM sku_mappings WHERE marketplace_variant_id = ?").run(
+      marketplace_variant_id,
+    );
+
+    const result = db
+      .prepare(
+        `INSERT INTO sku_mappings (
+          marketplace_variant_id,
+          marketplace,
+          marketplace_sku,
+          warehouse_sku,
+          product_id,
+          product_name,
+          color,
+          size
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        marketplace_variant_id,
+        marketplace,
+        marketplace_sku,
+        warehouse_sku,
+        product_id ?? null,
+        product_name ?? null,
+        color ?? null,
+        size ?? null,
+      );
+
+    const mapping = db
+      .prepare("SELECT * FROM sku_mappings WHERE id = ?")
+      .get(result.lastInsertRowid);
+
+    res.status(201).json({ mapping });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Gagal menyimpan mapping" });
+  }
+});
+
+app.put("/api/sku-mappings/:id", authenticateToken, (req, res) => {
+  const id = Number(req.params.id);
+  const { warehouse_sku } = req.body;
+
+  if (Number.isNaN(id) || typeof warehouse_sku !== "string") {
+    return res.status(400).json({ error: "Invalid data" });
+  }
+
+  try {
+    const result = db
+      .prepare("UPDATE sku_mappings SET warehouse_sku = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+      .run(warehouse_sku, id);
+
+    if (result.changes === 0) {
+      return res.status(404).json({ error: "Mapping not found" });
+    }
+
+    const mapping = db.prepare("SELECT * FROM sku_mappings WHERE id = ?").get(id);
+    res.json({ mapping });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Gagal memperbarui mapping" });
+  }
+});
+
+app.delete("/api/sku-mappings/:id", authenticateToken, (req, res) => {
+  const id = Number(req.params.id);
+  if (Number.isNaN(id)) {
+    return res.status(400).json({ error: "Invalid mapping ID" });
+  }
+
+  try {
+    const result = db.prepare("DELETE FROM sku_mappings WHERE id = ?").run(id);
+    if (result.changes === 0) {
+      return res.status(404).json({ error: "Mapping not found" });
+    }
+    res.json({ success: true });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Gagal menghapus mapping" });
+  }
 });
 
 app.use((req, res) => {
